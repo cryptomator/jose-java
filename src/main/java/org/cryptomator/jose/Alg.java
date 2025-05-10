@@ -14,6 +14,8 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 
 	// FACTORY METHODS
 
+	// TODO: which algorithms do we want to expose here?
+
 	static EncryptionAlg pbes2(char[] password, int iterationCount) {
 		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, iterationCount);
 	}

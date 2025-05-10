@@ -27,4 +27,6 @@ public record SimpleBuilder(String payload, JsonObject protectedHeader) implemen
 		return EncryptedJWEImpl.build(complexBuilder, enc, algs);
 	}
 
+	// TODO: add encrypt(HPKE... alg) method
+
 }

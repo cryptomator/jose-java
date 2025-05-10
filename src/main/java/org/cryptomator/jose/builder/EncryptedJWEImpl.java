@@ -57,6 +57,8 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 			recipientsArray.add(recipientObj);
 		}
 
+		// TODO: if all recipients use the same alg, move it to protected header! see https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6
+
 		// prepare protected header:
 		var protectedHeader = builder.protectedHeader().deepCopy();
 		protectedHeader.addProperty("enc", enc.encValue());

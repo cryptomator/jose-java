@@ -19,8 +19,8 @@ import java.util.Base64;
 public final class Pbes2Alg extends AbstractAlg {
 
 	public enum Type {
-		PBES2_HS256_A128KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 32),
-		PBES2_HS512_A256KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA512", 16),
+		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA512", 32),
+		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 16),
 		;
 
 		public final String jwaAlgName;
@@ -40,6 +40,9 @@ public final class Pbes2Alg extends AbstractAlg {
 	private final char[] password;
 	private final int p2c;
 
+	/// @param algType PBES2 algorithm type
+	/// @param password the password used to derive the wrapping key
+	/// @param p2c the PBKEDF2 iteration count (will be ignored for decryption)
 	public Pbes2Alg(Type algType, char[] password, int p2c) {
 		this.algType = algType;
 		this.password = password;

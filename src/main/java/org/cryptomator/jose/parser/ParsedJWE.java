@@ -22,7 +22,7 @@ import java.util.Base64;
 public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, JsonArray recipients, String iv,
 						String ciphertext, String tag, String aad) {
 
-	private JsonObject parsedProtectedHeader() {
+	public JsonObject parsedProtectedHeader() {
 		if (protectedHeader.isEmpty()) {
 			return new JsonObject();
 		}
