@@ -23,9 +23,9 @@ public final class Pbes2Alg extends AbstractAlg {
 		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 16),
 		;
 
-		public final String jwaAlgName;
-		public final String jcaAlgName;
-		public final int keyLength;
+		private final String jwaAlgName;
+		private final String jcaAlgName;
+		private final int keyLength;
 
 		Type(String jwaAlgName, String jcaAlgName, int keyLength) {
 			this.jwaAlgName = jwaAlgName;
@@ -86,7 +86,7 @@ public final class Pbes2Alg extends AbstractAlg {
 	}
 
 	@Override
-	public EncryptionResult encrypt(byte[] cek) {
+	public EncryptionResult encrypt(JsonObject combinedHeader, byte[] cek) {
 		var p2s = CryptoHelper.randomBytes(SALT_LEN);
 		JsonObject perRecipientHeader = new JsonObject();
 		perRecipientHeader.addProperty("alg", algType.jwaAlgName);

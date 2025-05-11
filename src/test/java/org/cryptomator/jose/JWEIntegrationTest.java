@@ -8,6 +8,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.spec.ECGenParameterSpec;
+
 class JWEIntegrationTest {
 
 	@Nested
@@ -65,6 +71,19 @@ class JWEIntegrationTest {
 			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, alg).toJsonSerialization();
 			var decrypted = JWE.parse(encrypted).decrypt(alg);
 			Assertions.assertEquals("payload", decrypted.payload());
+		}
+
+		@Test
+		@DisplayName("ECDH-ES+A256KW with P-384")
+		public void testECDHESA256KWwithP384() throws JoseException, GeneralSecurityException {
+			var keyGen = KeyPairGenerator.getInstance("EC");
+			keyGen.initialize(new ECGenParameterSpec("secp384r1"));
+			var keyPair = keyGen.generateKeyPair();
+
+			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, Alg.ecdhEs(keyPair.getPublic())).toJsonSerialization();
+			// TODO
+//			var decrypted = JWE.parse(encrypted).decrypt(Alg.pbes2("secret".toCharArray()));
+//			Assertions.assertEquals("payload", decrypted.payload());
 		}
 
 	}

@@ -5,7 +5,7 @@ import org.cryptomator.jose.alg.AbstractAlg;
 
 public sealed interface EncryptionAlg extends Alg permits AbstractAlg {
 
-	EncryptionResult encrypt(byte[] cek);
+	EncryptionResult encrypt(JsonObject combinedHeader, byte[] cek);
 
 	record EncryptionResult(byte[] encryptedKey, JsonObject recipientSpecificHeader) {
 	}

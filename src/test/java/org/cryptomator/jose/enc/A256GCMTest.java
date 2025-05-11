@@ -1,6 +1,7 @@
 package org.cryptomator.jose.enc;
 
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.util.Hex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;

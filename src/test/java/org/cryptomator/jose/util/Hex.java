@@ -1,4 +1,4 @@
-package org.cryptomator.jose.enc;
+package org.cryptomator.jose.util;
 
 import com.google.common.io.BaseEncoding;
 import org.junit.jupiter.params.converter.ArgumentConversionException;
