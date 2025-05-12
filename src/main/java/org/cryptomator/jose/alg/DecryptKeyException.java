@@ -8,4 +8,7 @@ public final class DecryptKeyException extends JoseDecryptException {
 		super(message, cause);
 	}
 
+	public DecryptKeyException(String message) {
+		super(message);
+	}
 }

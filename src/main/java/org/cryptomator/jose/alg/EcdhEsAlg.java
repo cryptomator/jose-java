@@ -27,6 +27,7 @@ import java.security.spec.ECFieldFp;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
+import java.security.spec.ECPublicKeySpec;
 import java.security.spec.EllipticCurve;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
@@ -127,7 +128,38 @@ public final class EcdhEsAlg extends AbstractAlg {
 		if (privateKey == null) {
 			throw new IllegalStateException("No private key available for decryption.");
 		}
-		return new byte[0];
+
+		// import ephemeral public key:
+		if (!combinedHeader.has("epk")) {
+			throw new IllegalStateException("No ephemeral public key available for decryption.");
+		}
+		var epk = fromJwk(combinedHeader.get("epk").getAsJsonObject());
+
+		// derive shared secret using ECDH-ES:
+		var sharedSecret = ecdh(epk, privateKey);
+
+		// derive wrapping key using KDF:
+		final SecretKey wrappingKey;
+		try {
+			var wrappingKeyBytes = deriveKey(sharedSecret, combinedHeader);
+			wrappingKey = new SecretKeySpec(wrappingKeyBytes, type.jcaKeyAlgName);
+		} finally {
+			Arrays.fill(sharedSecret, (byte) 0x00);
+		}
+
+		// wrap using AES key wrap:
+		try {
+			Cipher cipher = Cipher.getInstance(type.jcaKwAlgName);
+			cipher.init(Cipher.UNWRAP_MODE, wrappingKey);
+			var unwrapped = cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY); // TODO: cek type depends...
+			return unwrapped.getEncoded();
+		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
+			throw new UnsupportedOperationException("JVM does not support " + type.jcaKwAlgName, e);
+		} catch (InvalidKeyException e) {
+			throw new IllegalStateException("Unsuitable wrapping key", e);
+		} finally {
+			Destroyables.destroyQuietly(wrappingKey);
+		}
 	}
 
 	@Override
@@ -135,14 +167,6 @@ public final class EcdhEsAlg extends AbstractAlg {
 		if (publicKey == null) {
 			throw new IllegalStateException("No public key available for encryption.");
 		}
-
-		// import static public key:
-//		final ECPublicKey publicKey;
-//		try {
-//			publicKey = curve.importPublicKey(new X509EncodedKeySpec(cek));
-//		} catch (InvalidKeySpecException e) {
-//			throw new IllegalArgumentException(e); // TODO: better throw JoseEncryptException?
-//		}
 
 		// generate ephemeral key pair:
 		var keyPair = curve.generateKeyPair();
@@ -159,14 +183,7 @@ public final class EcdhEsAlg extends AbstractAlg {
 		// derive shared secret using ECDH-ES:
 		final byte[] sharedSecret;
 		try {
-			var keyAgreement = KeyAgreement.getInstance("ECDH");
-			keyAgreement.init(ephPrivateKey);
-			keyAgreement.doPhase(publicKey, true);
-			sharedSecret = keyAgreement.generateSecret();
-		} catch (NoSuchAlgorithmException e) {
-			throw new UnsupportedOperationException("JVM does not support ECDH", e);
-		} catch (InvalidKeyException e) {
-			throw new IllegalStateException("Unsuitable key", e);
+			sharedSecret = ecdh(publicKey, ephPrivateKey);
 		} finally {
 			Destroyables.destroyQuietly(ephPrivateKey);
 		}
@@ -183,7 +200,7 @@ public final class EcdhEsAlg extends AbstractAlg {
 		// wrap using AES key wrap:
 		final byte[] encryptedKey;
 		try {
-			SecretKey toBeWrapped = new SecretKeySpec(cek, "AES");
+			SecretKey toBeWrapped = new SecretKeySpec(cek, "AES"); // TODO: cek type depends...
 			Cipher cipher = Cipher.getInstance(type.jcaKwAlgName);
 			cipher.init(Cipher.WRAP_MODE, wrappingKey);
 			encryptedKey = cipher.wrap(toBeWrapped);
@@ -193,6 +210,8 @@ public final class EcdhEsAlg extends AbstractAlg {
 			throw new IllegalStateException("Unsuitable wrapping key", e);
 		} catch (IllegalBlockSizeException e) {
 			throw new IllegalStateException("CEK not multiple of block size", e);
+		} finally {
+			Destroyables.destroyQuietly(wrappingKey);
 		}
 
 		// assemble header
@@ -204,6 +223,19 @@ public final class EcdhEsAlg extends AbstractAlg {
 		return new EncryptionResult(encryptedKey, perRecipientHeader);
 	}
 
+	private byte[] ecdh(ECPublicKey publicKey, ECPrivateKey privateKey) {
+		try {
+			var keyAgreement = KeyAgreement.getInstance("ECDH");
+			keyAgreement.init(privateKey);
+			keyAgreement.doPhase(publicKey, true);
+			return keyAgreement.generateSecret();
+		} catch (NoSuchAlgorithmException e) {
+			throw new UnsupportedOperationException("JVM does not support ECDH", e);
+		} catch (InvalidKeyException e) {
+			throw new IllegalStateException("Unsuitable key", e);
+		}
+	}
+
 	private JsonObject toJwk(ECPublicKey publicKey) {
 		JsonObject jwk = new JsonObject();
 		jwk.addProperty("kty", EC_ALG);
@@ -211,6 +243,32 @@ public final class EcdhEsAlg extends AbstractAlg {
 		jwk.addProperty("x", Base64.getUrlEncoder().withoutPadding().encodeToString(publicKey.getW().getAffineX().toByteArray()));
 		jwk.addProperty("y", Base64.getUrlEncoder().withoutPadding().encodeToString(publicKey.getW().getAffineY().toByteArray()));
 		return jwk;
+	}
+
+	private ECPublicKey fromJwk(JsonObject epk) throws DecryptKeyException {
+		if (!epk.has("kty") || !epk.get("kty").getAsString().equals(EC_ALG)) {
+			throw new DecryptKeyException("Not an EC key");
+		}
+		if (!epk.has("crv") || !epk.get("crv").getAsString().equals(curve.jwaCrvName)) {
+			throw new DecryptKeyException("Key not for curve " + curve.jwaCrvName);
+		}
+		try {
+			var keyFactory = KeyFactory.getInstance(EC_ALG);
+			var point = new ECPoint(
+					new BigInteger(1, Base64.getUrlDecoder().decode(epk.get("x").getAsString())),
+					new BigInteger(1, Base64.getUrlDecoder().decode(epk.get("y").getAsString()))
+			);
+			var keySpec = new ECPublicKeySpec(point, curve.getCurveParams());
+			if (keyFactory.generatePublic(keySpec) instanceof ECPublicKey k) {
+				return validateKey(k, curve.getCurveParams());
+			} else {
+				throw new AssertionError("Key imported by EC key factory not an EC key");
+			}
+		} catch (NoSuchAlgorithmException e) {
+			throw new UnsupportedOperationException("JVM does not support elliptic curves", e);
+		} catch (InvalidKeySpecException e) {
+			throw new DecryptKeyException("Unsuitable key spec", e);
+		}
 	}
 
 	private byte[] deriveKey(byte[] sharedSecret, JsonObject combinedHeader) {

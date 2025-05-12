@@ -81,9 +81,8 @@ class JWEIntegrationTest {
 			var keyPair = keyGen.generateKeyPair();
 
 			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, Alg.ecdhEs(keyPair.getPublic())).toJsonSerialization();
-			// TODO
-//			var decrypted = JWE.parse(encrypted).decrypt(Alg.pbes2("secret".toCharArray()));
-//			Assertions.assertEquals("payload", decrypted.payload());
+			var decrypted = JWE.parse(encrypted).decrypt(Alg.ecdhEs(keyPair.getPrivate()));
+			Assertions.assertEquals("payload", decrypted.payload());
 		}
 
 	}
