@@ -1,18 +1,27 @@
 package org.cryptomator.jose;
 
+import org.cryptomator.jose.alg.EcdhEsAlg;
+import org.cryptomator.jose.alg.HPKE0Alg;
+import org.cryptomator.jose.alg.HPKE1Alg;
+import org.cryptomator.jose.alg.HPKE2Alg;
 import org.cryptomator.jose.alg.Pbes2Alg;
 import org.cryptomator.jose.builder.SimpleEncryptedJWE;
+import org.cryptomator.jose.util.Curve;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.security.GeneralSecurityException;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
+import java.security.interfaces.ECPrivateKey;
+import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
+import java.util.stream.Stream;
 
 class JWEIntegrationTest {
 
@@ -56,33 +65,38 @@ class JWEIntegrationTest {
 	@DisplayName("encrypt and decrypt")
 	class EncryptAndDecrypt {
 
-		@Test
-		@DisplayName("PBES2-HS512+A256KW")
-		public void testPBES2HS512A256KW() throws JoseException {
-			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10)).toJsonSerialization();
-			var decrypted = JWE.parse(encrypted).decrypt(Alg.pbes2("secret".toCharArray()));
+		@ParameterizedTest
+		@MethodSource
+		public void testEncryptAndDecrypt(EncryptionAlg encAlg, DecryptionAlg decAlg) throws JoseException {
+			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, encAlg).toJsonSerialization();
+			var decrypted = JWE.parse(encrypted).decrypt(decAlg);
 			Assertions.assertEquals("payload", decrypted.payload());
 		}
 
-		@Test
-		@DisplayName("PBES2-HS256+A128KW")
-		public void testPBES2HS256A128KW() throws JoseException {
-			var alg = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "secret".toCharArray(), 10);
-			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, alg).toJsonSerialization();
-			var decrypted = JWE.parse(encrypted).decrypt(alg);
-			Assertions.assertEquals("payload", decrypted.payload());
-		}
+		static Stream<Arguments> testEncryptAndDecrypt() throws GeneralSecurityException {
+			var ecKeyGen = KeyPairGenerator.getInstance("EC");
+			ecKeyGen.initialize(new ECGenParameterSpec("secp256r1"));
+			var p256KeyPair = ecKeyGen.generateKeyPair();
+			ecKeyGen.initialize(new ECGenParameterSpec("secp384r1"));
+			var p384KeyPair = ecKeyGen.generateKeyPair();
+			ecKeyGen.initialize(new ECGenParameterSpec("secp521r1"));
+			var p521KeyPair = ecKeyGen.generateKeyPair();
 
-		@Test
-		@DisplayName("ECDH-ES+A256KW with P-384")
-		public void testECDHESA256KWwithP384() throws JoseException, GeneralSecurityException {
-			var keyGen = KeyPairGenerator.getInstance("EC");
-			keyGen.initialize(new ECGenParameterSpec("secp384r1"));
-			var keyPair = keyGen.generateKeyPair();
+			var hpke0 = new HPKE0Alg((ECPublicKey) p256KeyPair.getPublic(), (ECPrivateKey) p256KeyPair.getPrivate());
+			var hpke1 = new HPKE1Alg((ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
+			var hpke2 = new HPKE2Alg((ECPublicKey) p521KeyPair.getPublic(), (ECPrivateKey) p521KeyPair.getPrivate());
+			var ecdhEs = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, (ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
+			var pbes2Hs256A128Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "secret".toCharArray(), 10);
+			var pbes2Hs512A256Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, "secret".toCharArray(), 10);
 
-			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, Alg.ecdhEs(keyPair.getPublic())).toJsonSerialization();
-			var decrypted = JWE.parse(encrypted).decrypt(Alg.ecdhEs(keyPair.getPrivate()));
-			Assertions.assertEquals("payload", decrypted.payload());
+			return Stream.of(
+					Arguments.argumentSet("HPKE-0", hpke0, hpke0),
+					Arguments.argumentSet("HPKE-1", hpke1, hpke1),
+					Arguments.argumentSet("HPKE-2", hpke2, hpke2),
+					Arguments.argumentSet("ECDH-ES+A256KW", ecdhEs, ecdhEs),
+					Arguments.argumentSet("PBES2_HS256_A128KW", pbes2Hs256A128Kw, pbes2Hs256A128Kw),
+					Arguments.argumentSet("PBES2_HS512_A256KW", pbes2Hs512A256Kw, pbes2Hs512A256Kw)
+			);
 		}
 
 	}

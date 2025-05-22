@@ -2,9 +2,10 @@ package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.util.Curve;
 import org.cryptomator.jose.util.Destroyables;
+import org.cryptomator.jose.util.ECHelper;
 
-import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyAgreement;
@@ -14,24 +15,14 @@ import javax.crypto.spec.SecretKeySpec;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.AlgorithmParameters;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
-import java.security.spec.ECFieldFp;
-import java.security.spec.ECGenParameterSpec;
-import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.ECPublicKeySpec;
-import java.security.spec.EllipticCurve;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.InvalidParameterSpecException;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -56,56 +47,6 @@ public final class EcdhEsAlg extends AbstractAlg {
 		}
 	}
 
-	public enum Curve {
-		P384("P-384", "secp384r1"),
-		;
-
-		private final String jwaCrvName;
-		private final String jcaCurveName;
-
-		Curve(String jwaCrvName, String jcaCurveName) {
-			this.jwaCrvName = jwaCrvName;
-			this.jcaCurveName = jcaCurveName;
-		}
-
-		public KeyPair generateKeyPair() {
-			try {
-				var keyGen = KeyPairGenerator.getInstance(EC_ALG);
-				keyGen.initialize(new ECGenParameterSpec(jcaCurveName));
-				return keyGen.generateKeyPair();
-			} catch (NoSuchAlgorithmException e) {
-				throw new UnsupportedOperationException("JVM does not support elliptic curves", e);
-			} catch (InvalidAlgorithmParameterException e) {
-				throw new AssertionError("ECGenParameterSpec deemed unappropriate by EC key pair generator", e);
-			}
-		}
-
-		public ECParameterSpec getCurveParams() {
-			try {
-				AlgorithmParameters parameters = AlgorithmParameters.getInstance(EC_ALG);
-				parameters.init(new ECGenParameterSpec(jcaCurveName));
-				return parameters.getParameterSpec(ECParameterSpec.class);
-			} catch (NoSuchAlgorithmException e) {
-				throw new UnsupportedOperationException("JVM does not support elliptic curves", e);
-			} catch (InvalidParameterSpecException e) {
-				throw new AssertionError("ECGenParameterSpec deemed unappropriate by EC algorithm parameter provider", e);
-			}
-		}
-
-//		public ECPublicKey importPublicKey(X509EncodedKeySpec keySpec) throws InvalidKeySpecException {
-//			try {
-//				var factory = KeyFactory.getInstance(EC_ALG);
-//				if (factory.generatePublic(keySpec) instanceof ECPublicKey k) {
-//					return validateKey(k, getCurveParams());
-//				} else {
-//					throw new AssertionError("Key imported by EC key factory not an EC key");
-//				}
-//			} catch (NoSuchAlgorithmException e) {
-//				throw new UnsupportedOperationException("JVM does not support elliptic curves", e);
-//			}
-//		}
-	}
-
 	private final Type type;
 	private final Curve curve;
 	private final ECPublicKey publicKey;
@@ -114,7 +55,7 @@ public final class EcdhEsAlg extends AbstractAlg {
 	public EcdhEsAlg(Type type, Curve curve, ECPublicKey publicKey, ECPrivateKey privateKey) {
 		this.type = type;
 		this.curve = curve;
-		this.publicKey = publicKey == null ? null : validateKey(publicKey, curve.getCurveParams());
+		this.publicKey = publicKey == null ? null : ECHelper.validateKey(publicKey, curve.getCurveParams());
 		this.privateKey = privateKey;
 	}
 
@@ -260,7 +201,7 @@ public final class EcdhEsAlg extends AbstractAlg {
 			);
 			var keySpec = new ECPublicKeySpec(point, curve.getCurveParams());
 			if (keyFactory.generatePublic(keySpec) instanceof ECPublicKey k) {
-				return validateKey(k, curve.getCurveParams());
+				return ECHelper.validateKey(k, curve.getCurveParams());
 			} else {
 				throw new AssertionError("Key imported by EC key factory not an EC key");
 			}
@@ -290,42 +231,5 @@ public final class EcdhEsAlg extends AbstractAlg {
 		otherInfo.put(suppPrivInfo);
 		return ConcatKDF.sha256().kdf(sharedSecret, type.keyLength, otherInfo.array());
 	}
-
-	// validations taken from https://neilmadden.blog/2017/05/17/so-how-do-you-validate-nist-ecdh-public-keys/
-	private static ECPublicKey validateKey(ECPublicKey publicKey, ECParameterSpec curveParams) {
-		if (curveParams.getCofactor() != 1) {
-			throw new IllegalArgumentException("Verifying points on curves with cofactor not supported"); // see "Step 4" in linked post
-		}
-		EllipticCurve curve = curveParams.getCurve();
-
-		// Step 1: Verify public key is not point at infinity.
-		if (ECPoint.POINT_INFINITY.equals(publicKey.getW())) {
-			throw new IllegalArgumentException("Invalid EC Key");
-		}
-
-		final BigInteger x = publicKey.getW().getAffineX();
-		final BigInteger y = publicKey.getW().getAffineY();
-		final BigInteger p = ((ECFieldFp) curve.getField()).getP();
-
-		// Step 2: Verify x and y are in range [0,p-1]
-		if (x.compareTo(BigInteger.ZERO) < 0 || x.compareTo(p) >= 0) {
-			throw new IllegalArgumentException("Invalid EC Key");
-		}
-		if (y.compareTo(BigInteger.ZERO) < 0 || y.compareTo(p) >= 0) {
-			throw new IllegalArgumentException("Invalid EC Key");
-		}
-
-		// Step 3: Verify that y^2 == x^3 + ax + b (mod p)
-		final BigInteger a = curve.getA();
-		final BigInteger b = curve.getB();
-		final BigInteger ySquared = y.modPow(BigInteger.valueOf(2), p);
-		final BigInteger xCubedPlusAXPlusB = x.modPow(BigInteger.valueOf(3), p).add(a.multiply(x)).add(b).mod(p);
-		if (!ySquared.equals(xCubedPlusAXPlusB)) {
-			throw new IllegalArgumentException("Invalid EC Key");
-		}
-
-		return publicKey;
-	}
-
 
 }

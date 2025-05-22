@@ -1,7 +1,11 @@
 package org.cryptomator.jose;
 
 import org.cryptomator.jose.alg.EcdhEsAlg;
+import org.cryptomator.jose.alg.HPKE0Alg;
+import org.cryptomator.jose.alg.HPKE1Alg;
+import org.cryptomator.jose.alg.HPKE2Alg;
 import org.cryptomator.jose.alg.Pbes2Alg;
+import org.cryptomator.jose.util.Curve;
 
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -30,14 +34,28 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
-		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, EcdhEsAlg.Curve.P384,null, k);
+		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384,null, k);
 	}
 
 	static EncryptionAlg ecdhEs(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
-		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, EcdhEsAlg.Curve.P384, k, null);
+		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, k, null);
+	}
+
+	static EncryptionAlg hpke2(PublicKey publicKey) {
+		if (!(publicKey instanceof ECPublicKey k)) {
+			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
+		}
+		return new HPKE2Alg(k, null);
+	}
+
+	static DecryptionAlg hpke2(PrivateKey privateKey) {
+		if (!(privateKey instanceof ECPrivateKey k)) {
+			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
+		}
+		return new HPKE2Alg(null, k);
 	}
 
 }
