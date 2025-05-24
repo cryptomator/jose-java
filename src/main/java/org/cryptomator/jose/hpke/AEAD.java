@@ -19,9 +19,6 @@ public enum AEAD {
 	/// AEAD name
 	public final String name;
 
-	/// HPKE AEAD id according to [IANA](https://www.iana.org/assignments/hpke/hpke.xhtml)
-//	public final byte[] id;
-
 	/// key length in bytes
 	public final int nk;
 
