@@ -1,5 +1,7 @@
 package org.cryptomator.jose.util;
 
+import java.util.Arrays;
+
 public class ArrayUtil {
 
 	private ArrayUtil() {
@@ -36,6 +38,14 @@ public class ArrayUtil {
 			result[i] = (byte) (a[i] ^ b[i]);
 		}
 		return result;
+	}
+
+	public static byte[] reverse(byte[] input) {
+		byte[] reversed = new byte[input.length];
+		for (int i = 0; i < input.length; i++) {
+			reversed[i] = input[input.length - 1 - i];
+		}
+		return reversed;
 	}
 
 }
