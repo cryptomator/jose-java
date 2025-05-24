@@ -2,22 +2,17 @@ package org.cryptomator.jose.hpke;
 
 import org.bouncycastle.crypto.digests.SHAKEDigest;
 import org.cryptomator.jose.util.ArrayUtil;
+import org.cryptomator.jose.util.X25519;
 
-import javax.crypto.KeyAgreement;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.NamedParameterSpec;
-import java.security.spec.XECPrivateKeySpec;
-import java.security.spec.XECPublicKeySpec;
 import java.util.Arrays;
 
 /// Helper class to make certain primitives available for X-Wing key generation.
@@ -101,26 +96,16 @@ class XwingKeyGenerator {
 	/// @param sk the secret key scalar
 	private static KeyPair deriveX25519KeyPair(byte[] sk) {
 		assert sk.length == 32 : "Secret key must be 32 bytes long";
-		try {
-			KeyFactory keyFactory = KeyFactory.getInstance("X25519");
-			var privateKey = keyFactory.generatePrivate(new XECPrivateKeySpec(NamedParameterSpec.X25519, sk));
-			var basePoint = keyFactory.generatePublic(new XECPublicKeySpec(NamedParameterSpec.X25519, BigInteger.valueOf(9L))); // base point is 9, see RFC 7748
+		var privateKey = X25519.privateKey(sk);
+		var basePoint = X25519.basePoint();
 
-			// applying x25519 on secret key and base point yields the public key:
-			var keyAgreement = KeyAgreement.getInstance("X25519");
-			keyAgreement.init(privateKey);
-			keyAgreement.doPhase(basePoint, true);
-			byte[] pk = keyAgreement.generateSecret();
+		// applying x25519 on secret key and base point yields the public key:
+		byte[] pk = X25519.dh(privateKey, basePoint);
 
-			// turn public key bytes into an object:
-			var u = new BigInteger(1, ArrayUtil.reverse(pk)); // pk is little endian
-			var publicKey = keyFactory.generatePublic(new XECPublicKeySpec(NamedParameterSpec.X25519, u));
-			return new KeyPair(publicKey, privateKey);
-		} catch (NoSuchAlgorithmException e) {
-			throw new UnsupportedOperationException("JVM does not support X25519", e);
-		} catch (InvalidKeySpecException | InvalidKeyException e) {
-			throw new IllegalStateException("Internal error", e);
-		}
+		// turn public key bytes into an object:
+		var u = new BigInteger(1, ArrayUtil.reverse(pk)); // pk is little endian
+		var publicKey = X25519.publicKey(u);
+		return new KeyPair(publicKey, privateKey);
 	}
 
 	private static byte[] shake256(byte[] input, int byteLength) {
