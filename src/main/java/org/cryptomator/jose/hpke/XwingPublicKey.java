@@ -46,6 +46,28 @@ class XwingPublicKey implements PublicKey {
 		this.pk = Arrays.copyOf(pk, pk.length);
 	}
 
+	public static XwingPublicKey createFromKeys(PublicKey mlKemPublicKey, PublicKey x25519PublicKey) {
+		if (mlKemPublicKey == null || x25519PublicKey == null) {
+			throw new IllegalArgumentException("Keys cannot be null");
+		}
+		if (!"X.509".equals(mlKemPublicKey.getFormat()) || !"ML-KEM".equals(mlKemPublicKey.getAlgorithm())) {
+			throw new IllegalArgumentException("Expected X.509 encoded ML-KEM public key, but got: " + mlKemPublicKey.getFormat() + " " + mlKemPublicKey.getAlgorithm());
+		}
+		if (!"X.509".equals(x25519PublicKey.getFormat()) || !"XDH".equals(x25519PublicKey.getAlgorithm())) {
+			throw new IllegalArgumentException("Expected X.509 encoded X25519 public key, but got: " + x25519PublicKey.getFormat() + " " + x25519PublicKey.getAlgorithm());
+		}
+		byte[] pkMx509 = mlKemPublicKey.getEncoded();
+		byte[] pkXx509 = x25519PublicKey.getEncoded();
+		if (pkMx509.length != SPKI_HEADER_ML_KEM_768.length + 1184 || pkXx509.length != SPKI_HEADER_X25519.length + 32) {
+			throw new IllegalArgumentException("Invalid key lengths");
+		}
+		// TODO: eventually replace payload extraction with https://openjdk.org/jeps/470
+		byte[] pkM = Arrays.copyOfRange(pkMx509, SPKI_HEADER_ML_KEM_768.length, pkMx509.length);
+		byte[] pkX = Arrays.copyOfRange(pkXx509, SPKI_HEADER_X25519.length, pkXx509.length);
+
+		return new XwingPublicKey(ArrayUtil.concat(pkM, pkX));
+	}
+
 	@Override
 	public String getAlgorithm() {
 		return "X-Wing";

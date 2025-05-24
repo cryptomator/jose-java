@@ -32,33 +32,8 @@ class XwingKeyGenerator {
 	// visible for testing
 	public static KeyPair generateKeyPairDerand(byte[] sk) {
 		var keys = expandDecapsulationKey(sk);
-		var pk = ArrayUtil.concat(extractRawBytes(keys.m().getPublic()), extractRawBytes(keys.x().getPublic()));
-		return new KeyPair(new XwingPublicKey(pk), new XwingPrivateKey(sk));
-	}
-
-	private static byte[] extractRawBytes(PublicKey publicKey) {
-		// TODO: replace with https://openjdk.org/jeps/470
-		if (!"X.509".equals(publicKey.getFormat())) {
-			throw new IllegalArgumentException("Expected X.509 encoded public key, but got: " + publicKey.getFormat());
-		}
-		byte[] x509 = publicKey.getEncoded();
-
-		if ("ML-KEM".equals(publicKey.getAlgorithm()) && x509.length == XwingPublicKey.SPKI_HEADER_ML_KEM_768.length + 1184) {
-			return Arrays.copyOfRange(x509, XwingPublicKey.SPKI_HEADER_ML_KEM_768.length, x509.length); // the last 1184 bytes are the raw key
-		} else if ("XDH".equals(publicKey.getAlgorithm()) && x509.length == XwingPublicKey.SPKI_HEADER_X25519.length + 32) {
-			return Arrays.copyOfRange(x509, XwingPublicKey.SPKI_HEADER_X25519.length, x509.length); // the last 32 bytes are the raw key
-		} else {
-			throw new IllegalArgumentException("Unexpected public key format or length: " + publicKey.getAlgorithm() + ", length: " + x509.length);
-		}
-
-		// alternatively use bouncy castle:
-//		try {
-//			byte[] x509Encoded = publicKey.getEncoded();
-//			SubjectPublicKeyInfo spki = SubjectPublicKeyInfo.getInstance(ASN1Primitive.fromByteArray(x509Encoded));
-//			return spki.getPublicKeyData().getBytes();  // This is the raw 1184 bytes
-//		} catch (IOException e) {
-//			throw new IllegalArgumentException("Failed to parse X.509 encoded public key", e);
-//		}
+		var pk = XwingPublicKey.createFromKeys(keys.m.getPublic(), keys.x.getPublic());
+		return new KeyPair(pk, new XwingPrivateKey(sk));
 	}
 
 	/// @param m The ML-KEM key pair `sk_M` and `pk_M`
