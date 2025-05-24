@@ -16,4 +16,11 @@ class XwingProviderTest {
 		Assertions.assertInstanceOf(KeyPairGenerator.class, keyPairGenerator);
 	}
 
+	@Test
+	void provideKem() throws NoSuchAlgorithmException {
+		var kem = KEM.getInstance("X-Wing", XwingProvider.INSTANCE);
+
+		Assertions.assertInstanceOf(KEM.class, kem);
+	}
+
 }

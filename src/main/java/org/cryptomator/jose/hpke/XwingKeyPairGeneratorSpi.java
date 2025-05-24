@@ -57,11 +57,11 @@ public class XwingKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
 	/// @param m The ML-KEM key pair `sk_M` and `pk_M`
 	/// @param x The X25519 key pair `sk_X` and `pk_X`
-	record XwingKeyPair(KeyPair m, KeyPair x) {}
+	record ExpandedKeys(KeyPair m, KeyPair x) {}
 
 	/// derives key material from the given secret key
 	/// @param sk the secret key that seeds key derivation
-	private static XwingKeyPair expandDecapsulationKey(byte[] sk) {
+	static ExpandedKeys expandDecapsulationKey(byte[] sk) {
 		var expanded = shake256(sk, 96);
 		byte[] d = Arrays.copyOfRange(expanded, 0, 32); // d is the first 32 bytes
 		byte[] z = Arrays.copyOfRange(expanded, 32, 64); // z is the next 32 bytes
@@ -83,7 +83,7 @@ public class XwingKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 			Arrays.fill(skX, (byte) 0);
 		}
 
-		return new XwingKeyPair(m, x);
+		return new ExpandedKeys(m, x);
 	}
 
 	/// derives the public key and returns a KeyPair containing the public and private key.

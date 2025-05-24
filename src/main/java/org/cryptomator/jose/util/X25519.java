@@ -53,6 +53,15 @@ public class X25519 {
 		}
 	}
 
+	/// Constructs a private key from a 32-byte encoded value.
+	/// @param u little-endian encoded private key value.
+	public static XECPublicKey publicKey(byte[] u) {
+		if (u == null || u.length != 32) {
+			throw new IllegalArgumentException("Public key must be 32 bytes long");
+		}
+		return publicKey(new BigInteger(1, ArrayUtil.reverse(u)));
+	}
+
 	public static XECPublicKey publicKey(BigInteger u) {
 		try {
 			return (XECPublicKey) keyFactory().generatePublic(new XECPublicKeySpec(NamedParameterSpec.X25519, u));

@@ -86,10 +86,9 @@ class XwingPublicKey implements PublicKey {
 	/// returns the ML-KEM public key part (`pk_M = pk[0:1184]`)
 	/// @return a new {@link PublicKey} instance
 	public PublicKey getMLKemPublicKey() {
-		var subkey = Arrays.copyOfRange(pk, 0, 1184);
 		try {
 			KeyFactory keyFactory = KeyFactory.getInstance("ML-KEM");
-			return keyFactory.generatePublic(new X509EncodedKeySpec(ArrayUtil.concat(SPKI_HEADER_ML_KEM_768, subkey)));
+			return keyFactory.generatePublic(new X509EncodedKeySpec(ArrayUtil.concat(SPKI_HEADER_ML_KEM_768, getM())));
 		} catch (NoSuchAlgorithmException e) {
 			throw new UnsupportedOperationException("JVM does not support ML-KEM", e);
 		} catch (InvalidKeySpecException e) {
@@ -97,19 +96,30 @@ class XwingPublicKey implements PublicKey {
 		}
 	}
 
+	/// returns the ML-KEM public key part (`pk_M = pk[0:1184]`)
+	/// @return subkey bytes of length 1184
+	public byte[] getM() {
+		return Arrays.copyOfRange(pk, 0, 1184);
+	}
+
 	/// returns the X25519 public key part (`pk_X = pk[1184:1216]`)
 	/// @return a new {@link XECPublicKey} instance
 	public XECPublicKey getX25519PublicKey() {
-		var subkey = Arrays.copyOfRange(pk, 1184, 1216);
 		try {
 			KeyFactory keyFactory = KeyFactory.getInstance("X25519");
-			var u = new BigInteger(1, ArrayUtil.reverse(subkey)); // really reverse?
+			var u = new BigInteger(1, ArrayUtil.reverse(getX())); // really reverse?
 			return (XECPublicKey) keyFactory.generatePublic(new XECPublicKeySpec(NamedParameterSpec.X25519, u));
 		} catch (NoSuchAlgorithmException e) {
 			throw new UnsupportedOperationException("JVM does not support X25519", e);
 		} catch (InvalidKeySpecException e) {
 			throw new IllegalStateException("Internal error", e);
 		}
+	}
+
+	/// returns the X25519 public key part (`pk_X = pk[1184:1216]`)
+	/// @return subkey bytes of length 32
+	public byte[] getX() {
+		return Arrays.copyOfRange(pk, 1184, 1216);
 	}
 
 }

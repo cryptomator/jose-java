@@ -40,7 +40,7 @@
 
 		<!-- test dependencies -->
 		<junit.version>5.12.0</junit.version>
-		<mockito.version>5.15.2</mockito.version>
+		<mockito.version>5.18.0</mockito.version>
 	</properties>
 
 	<dependencies>
@@ -94,6 +94,9 @@
 						<additionalJOption>-J-Duser.language=en</additionalJOption>
 						<additionalJOption>-J-Duser.country=US</additionalJOption>
 					</additionalJOptions>
+					<additionalOptions>
+						<additionalOption>--enable-preview</additionalOption>
+					</additionalOptions>
 					<release>${maven.compiler.release}</release>
 				</configuration>
 			</plugin>
