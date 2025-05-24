@@ -9,17 +9,36 @@ import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.KeyPairGeneratorSpi;
 import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.NamedParameterSpec;
 import java.util.Arrays;
 
 /// Helper class to make certain primitives available for X-Wing key generation.
 /// See [draft-connolly-cfrg-xwing-kem Section 5.2](https://datatracker.ietf.org/doc/html/draft-connolly-cfrg-xwing-kem-07#section-5.2)
-class XwingKeyGenerator {
+public class XwingKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
-	public static KeyPair generateKeyPair(SecureRandom csprng) {
+	private SecureRandom random;
+
+	@Override
+	public void initialize(int keysize, SecureRandom random) {
+		this.random = random;
+	}
+
+	@Override
+	public KeyPair generateKeyPair() {
+		if (random == null) {
+			try {
+				random = SecureRandom.getInstanceStrong();
+			} catch (NoSuchAlgorithmException e) {
+				throw new AssertionError("Every implementation of the Java platform is required to support at least one strong SecureRandom implementation.", e);
+			}
+		}
+		return generateKeyPair(random);
+	}
+
+	static KeyPair generateKeyPair(SecureRandom csprng) {
 		byte[] sk = new byte[32];
 		try {
 			csprng.nextBytes(sk);
@@ -30,7 +49,7 @@ class XwingKeyGenerator {
 	}
 
 	// visible for testing
-	public static KeyPair generateKeyPairDerand(byte[] sk) {
+	static KeyPair generateKeyPairDerand(byte[] sk) {
 		var keys = expandDecapsulationKey(sk);
 		var pk = XwingPublicKey.createFromKeys(keys.m.getPublic(), keys.x.getPublic());
 		return new KeyPair(pk, new XwingPrivateKey(sk));
@@ -42,7 +61,7 @@ class XwingKeyGenerator {
 
 	/// derives key material from the given secret key
 	/// @param sk the secret key that seeds key derivation
-	public static XwingKeyPair expandDecapsulationKey(byte[] sk) {
+	private static XwingKeyPair expandDecapsulationKey(byte[] sk) {
 		var expanded = shake256(sk, 96);
 		byte[] d = Arrays.copyOfRange(expanded, 0, 32); // d is the first 32 bytes
 		byte[] z = Arrays.copyOfRange(expanded, 32, 64); // z is the next 32 bytes
@@ -92,7 +111,7 @@ class XwingKeyGenerator {
 	}
 
 	/// `KeyGen_internal` is private API, however we can use a mocked RND to generate a key pair from a given d and z.
-	public static KeyPair keyGenInternal(byte[] d, byte[] z) {
+	private static KeyPair keyGenInternal(byte[] d, byte[] z) {
 		if (d.length != 32 || z.length != 32) {
 			throw new IllegalArgumentException("d and z must be 32 bytes long");
 		}
@@ -126,10 +145,6 @@ class XwingKeyGenerator {
 		} catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
 			throw new UnsupportedOperationException("Failed to generate ML-KEM key pair", e);
 		}
-	}
-
-	private XwingKeyGenerator() {
-		// Utility class, no instantiation allowed
 	}
 
 }
