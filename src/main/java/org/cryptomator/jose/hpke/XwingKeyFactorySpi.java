@@ -43,13 +43,16 @@ public class XwingKeyFactorySpi extends KeyFactorySpi {
 
 	@Override
 	protected PrivateKey engineGeneratePrivate(KeySpec keySpec) throws InvalidKeySpecException {
-		var bytes = switch (keySpec) {
-			case PKCS8EncodedKeySpec s -> fromPKCS8(s.getEncoded());
-			case EncodedKeySpec s when "RAW".equals(s.getFormat()) -> s.getEncoded();
-			default -> throw new InvalidKeySpecException("Unsupported key spec: " + keySpec.getClass().getName());
-		};
+		byte[] bytes = new byte[0];
 		try {
+			bytes = switch (keySpec) {
+				case PKCS8EncodedKeySpec s -> fromPKCS8(s::getEncoded);
+				case EncodedKeySpec s when "RAW".equals(s.getFormat()) -> s.getEncoded();
+				default -> throw new InvalidKeySpecException("Unsupported key spec: " + keySpec.getClass().getName());
+			};
 			return new XwingPrivateKey(bytes);
+		}  catch (IllegalArgumentException e) {
+			throw new InvalidKeySpecException(e);
 		} finally {
 			Arrays.fill(bytes, (byte) 0x00);
 		}
@@ -68,15 +71,19 @@ public class XwingKeyFactorySpi extends KeyFactorySpi {
 
 	@Override
 	protected Key engineTranslateKey(Key key) throws InvalidKeyException {
-		return switch (key) {
-			case XwingPublicKey publicKey -> publicKey;
-			case XwingPrivateKey privateKey -> privateKey;
-			case PublicKey k when "RAW".equals(k.getFormat()) -> new XwingPublicKey(k.getEncoded());
-			case PrivateKey k when "RAW".equals(k.getFormat()) -> new XwingPrivateKey(k.getEncoded());
-			case PublicKey k when "X.509".equals(k.getFormat()) -> new XwingPublicKey(fromX509(k.getEncoded()));
-			case PrivateKey k when "PKCS#8".equals(k.getFormat()) -> new XwingPrivateKey(fromPKCS8(k.getEncoded()));
-			default -> throw new InvalidKeyException("Unsupported key type: " + key.getClass().getName());
-		};
+		try {
+			return switch (key) {
+				case XwingPublicKey publicKey -> publicKey;
+				case XwingPrivateKey privateKey -> privateKey;
+				case PublicKey k when "RAW".equals(k.getFormat()) -> new XwingPublicKey(k.getEncoded());
+				case PrivateKey k when "RAW".equals(k.getFormat()) -> new XwingPrivateKey(k.getEncoded());
+				case PublicKey k when "X.509".equals(k.getFormat()) -> new XwingPublicKey(fromX509(k.getEncoded()));
+				case PrivateKey k when "PKCS#8".equals(k.getFormat()) -> new XwingPrivateKey(fromPKCS8(k::getEncoded));
+				default -> throw new InvalidKeyException("Unsupported key type: " + key.getClass().getName());
+			};
+		} catch (IllegalArgumentException e) {
+			throw new InvalidKeyException(e);
+		}
 	}
 
 	private static byte[] fromX509(byte[] encoded) {
@@ -93,7 +100,17 @@ public class XwingKeyFactorySpi extends KeyFactorySpi {
 		return ArrayUtil.concat(X509_HEADER, encoded);
 	}
 
+	private static byte[] fromPKCS8(Encodable encodable) {
+		var encoded = encodable.getEncoded();
+		try {
+			return fromPKCS8(encoded);
+		} finally {
+			Arrays.fill(encoded, (byte) 0x00);
+		}
+	}
+
 	private static byte[] fromPKCS8(byte[] encoded) {
+		// FIXME: PKCS8 allows for optional attributes, so the length check is not correct
 		if (encoded == null || encoded.length != PKCS8_HEADER.length + 32) {
 			throw new IllegalArgumentException("PKCS#8 encoded private key must be " + PKCS8_HEADER.length + 32 + " bytes long");
 		}
@@ -105,6 +122,11 @@ public class XwingKeyFactorySpi extends KeyFactorySpi {
 			throw new IllegalArgumentException("Private key must be 32 bytes long");
 		}
 		return ArrayUtil.concat(PKCS8_HEADER, encoded);
+	}
+
+	@FunctionalInterface
+	private interface Encodable {
+		byte[] getEncoded();
 	}
 
 
