@@ -12,6 +12,7 @@ public final class XwingProvider extends Provider {
 		super(NAME, "1.0","Provides X-Wing KEM");
 		// putService(Service);
 		put("KeyPairGenerator.X-Wing", XwingKeyPairGeneratorSpi.class.getName());
+		put("KeyFactory.X-Wing", XwingKeyFactorySpi.class.getName());
 		put("KEM.X-Wing", XwingKEMSpi.class.getName());
 	}
 

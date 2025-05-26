@@ -40,8 +40,8 @@ class XwingPublicKey implements PublicKey {
 	private final byte[] pk;
 
 	public XwingPublicKey(byte[] pk) {
-		if (pk == null || pk.length < 1216) {
-			throw new IllegalArgumentException("Public key cannot be null or empty");
+		if (pk == null || pk.length != 1216) {
+			throw new IllegalArgumentException("Public key must be 1216 bytes long");
 		}
 		this.pk = Arrays.copyOf(pk, pk.length);
 	}

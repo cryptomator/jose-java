@@ -3,13 +3,13 @@ package org.cryptomator.jose.hpke;
 import java.security.PrivateKey;
 import java.util.Arrays;
 
-public class XwingPrivateKey implements PrivateKey {
+class XwingPrivateKey implements PrivateKey {
 
 	private final byte[] sk;
 
 	public XwingPrivateKey(byte[] sk) {
 		if (sk == null || sk.length != 32) {
-			throw new IllegalArgumentException("Secret key cannot be null or empty");
+			throw new IllegalArgumentException("Private key must be 32 bytes long");
 		}
 		this.sk = Arrays.copyOf(sk, sk.length);
 	}
