@@ -2,11 +2,9 @@ package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
-import org.cryptomator.jose.enc.DecryptCiphertextException;
 import org.cryptomator.jose.hpke.AEAD;
 import org.cryptomator.jose.hpke.HKDF;
 import org.cryptomator.jose.util.ArrayUtil;
-import org.cryptomator.jose.util.Curve;
 import org.cryptomator.jose.util.Destroyables;
 
 import javax.crypto.AEADBadTagException;
@@ -20,15 +18,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.interfaces.ECPrivateKey;
-import java.security.interfaces.ECPublicKey;
 import java.util.Base64;
 
 
 /// Perform HPKE
 /// Key Encryption with [HPKE-2](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/)
 /// Test vectors from [RFC 9180](https://www.rfc-editor.org/rfc/rfc9180#name-dhkemp-521-hkdf-sha512-hkdf)
-abstract sealed class HPKEAlg extends AbstractAlg permits HPKE0Alg, HPKE1Alg, HPKE2Alg {
+abstract sealed class HPKEAlg extends AbstractAlg permits HPKE0Alg, HPKE1Alg, HPKE2Alg , HPKE7Alg {
 
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
@@ -36,7 +32,7 @@ abstract sealed class HPKEAlg extends AbstractAlg permits HPKE0Alg, HPKE1Alg, HP
 	private final HKDF kdf;
 	private final AEAD aead;
 
-	public HPKEAlg(KEM kem, HKDF kdf, AEAD aead, ECPublicKey publicKey, ECPrivateKey privateKey) {
+	public HPKEAlg(KEM kem, HKDF kdf, AEAD aead, PublicKey publicKey, PrivateKey privateKey) {
 		this.kem = kem;
 		this.kdf = kdf;
 		this.aead = aead;
