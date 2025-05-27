@@ -1,6 +1,9 @@
 package org.cryptomator.jose.hpke;
 
+import org.bouncycastle.asn1.ASN1Encodable;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
+import org.bouncycastle.asn1.ASN1Set;
+import org.bouncycastle.asn1.BERSet;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
@@ -17,8 +20,6 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
-
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 class XwingKeyFactorySpiTest {
 
@@ -83,6 +84,18 @@ class XwingKeyFactorySpiTest {
 
 		@Test
 		public void testDecode() throws InvalidKeySpecException {
+			var key = keyFactory.generatePrivate(bcEncoded);
+
+			Assertions.assertArrayEquals(keyPair.getPrivate().getEncoded(), key.getEncoded());
+		}
+
+		@Test
+		public void testDecodeWithOptionalAttributes() throws InvalidKeySpecException, IOException {
+			AlgorithmIdentifier algId = new AlgorithmIdentifier(ASN1ObjectIdentifier.tryFromID("1.3.6.1.4.1.62253.25722"));
+			ASN1Set attr = new BERSet(new ASN1Encodable[]{algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId, algId});
+			PrivateKeyInfo pkInfo = new PrivateKeyInfo(algId, keyPair.getPrivate().getEncoded(), attr);
+			bcEncoded = new PKCS8EncodedKeySpec(pkInfo.getEncoded());
+
 			var key = keyFactory.generatePrivate(bcEncoded);
 
 			Assertions.assertArrayEquals(keyPair.getPrivate().getEncoded(), key.getEncoded());

@@ -48,4 +48,16 @@ public class ArrayUtil {
 		return reversed;
 	}
 
+	/// Find position of needle in haystack
+	/// @param haystack the array to search in
+	/// @param needle the array to search for
+	/// @return the start of the first occurrence of needle in haystack, or -1 if not found
+	public static int indexOf(byte[] haystack, byte[] needle) {
+		for (int i = 0; i <= haystack.length - needle.length; i++) {
+			if (Arrays.equals(haystack, i, i + needle.length, needle, 0, needle.length)) {
+				return i;
+			}
+		}
+		return -1; // not found
+	}
 }

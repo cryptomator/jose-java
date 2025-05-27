@@ -16,13 +16,15 @@ import java.util.Arrays;
 
 public class XwingKeyFactorySpi extends KeyFactorySpi {
 
-	public static final byte[] X509_HEADER = new byte[] {
+	/// the header to prepend to the key bytes. See ASN.1 syntax of [X509EncodedKeySpec]
+	private static final byte[] X509_HEADER = new byte[] {
 			(byte) 0x30, (byte) 0x82, (byte) 0x04, (byte) 0xd4, // SEQUENCE of length 1236
 			(byte) 0x30, (byte) 0x0d, // SEQUENCE of length 13
 			(byte) 0x06, (byte) 0x0B, (byte) 0x2B, (byte) 0x06, (byte) 0x01, (byte) 0x04, (byte) 0x01, (byte) 0x83, (byte) 0xE6, (byte) 0x2D, (byte) 0x81, (byte) 0xC8, (byte) 0x7A, // OID 1.3.6.1.4.1.62253.25722
 			(byte) 0x03, (byte) 0x82, (byte) 0x04, (byte) 0xc1, (byte) 0x00 // BIT STRING of length 1217
 	};
 
+	/// the (minimal - with no attributes) header to prepend to the key bytes. See ASN.1 syntax of [PKCS8EncodedKeySpec]
 	private static final byte[] PKCS8_HEADER = new byte[] {
 			(byte) 0x30, (byte) 0x34, // SEQUENCE of length 54
 			(byte) 0x02, (byte) 0x01, (byte) 0x00, // VERSION 0
@@ -86,6 +88,8 @@ public class XwingKeyFactorySpi extends KeyFactorySpi {
 		}
 	}
 
+	// TODO: replace ASN.1 parsing with https://openjdk.org/jeps/470 when available
+
 	private static byte[] fromX509(byte[] encoded) {
 		if (encoded == null || encoded.length != X509_HEADER.length + 1216) {
 			throw new IllegalArgumentException("SPKI encoded public key must be " + X509_HEADER.length + 1216 + " bytes long");
@@ -110,11 +114,19 @@ public class XwingKeyFactorySpi extends KeyFactorySpi {
 	}
 
 	private static byte[] fromPKCS8(byte[] encoded) {
-		// FIXME: PKCS8 allows for optional attributes, so the length check is not correct
-		if (encoded == null || encoded.length != PKCS8_HEADER.length + 32) {
-			throw new IllegalArgumentException("PKCS#8 encoded private key must be " + PKCS8_HEADER.length + 32 + " bytes long");
+		if (encoded == null || encoded.length < PKCS8_HEADER.length + 32) {
+			throw new IllegalArgumentException("PKCS#8 encoded private key must be at least " + PKCS8_HEADER.length + 32 + " bytes long");
 		}
-		return Arrays.copyOfRange(encoded, PKCS8_HEADER.length, encoded.length); // remove header
+
+		// We don't know the exact header size due to optional attributes.
+		// However, we know for sure, there is the OID part before the 32 byte octet string:
+		byte[] asn1BytesBeforeOctetString = Arrays.copyOfRange(PKCS8_HEADER, 7, PKCS8_HEADER.length);
+		int pos = ArrayUtil.indexOf(encoded, asn1BytesBeforeOctetString);
+		if (pos == -1 || pos + asn1BytesBeforeOctetString.length + 32 > encoded.length) {
+			throw new IllegalArgumentException("PKCS#8 encoded private key does not contain the expected OID");
+		}
+		int octetStringStart = pos + asn1BytesBeforeOctetString.length;
+		return Arrays.copyOfRange(encoded, octetStringStart, octetStringStart + 32);
 	}
 
 	private static byte[] toPKCS8(byte[] encoded) {
