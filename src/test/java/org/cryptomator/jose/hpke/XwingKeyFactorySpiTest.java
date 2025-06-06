@@ -11,11 +11,15 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
@@ -61,6 +65,18 @@ class XwingKeyFactorySpiTest {
 			Assertions.assertArrayEquals(keyPair.getPublic().getEncoded(), key.getEncoded());
 		}
 
+		@Test
+		public void testTranslate() throws InvalidKeyException {
+			var alienX509Key = Mockito.mock(PublicKey.class);
+			Mockito.doReturn("X-Wing").when(alienX509Key).getAlgorithm();
+			Mockito.doReturn(bcEncoded.getEncoded()).when(alienX509Key).getEncoded();
+			Mockito.doReturn("X.509").when(alienX509Key).getFormat();
+
+			var key = keyFactory.translateKey(alienX509Key);
+
+			Assertions.assertArrayEquals(keyPair.getPublic().getEncoded(), key.getEncoded());
+		}
+
 	}
 
 	@Nested
@@ -97,6 +113,18 @@ class XwingKeyFactorySpiTest {
 			bcEncoded = new PKCS8EncodedKeySpec(pkInfo.getEncoded());
 
 			var key = keyFactory.generatePrivate(bcEncoded);
+
+			Assertions.assertArrayEquals(keyPair.getPrivate().getEncoded(), key.getEncoded());
+		}
+
+		@Test
+		public void testTranslate() throws InvalidKeyException {
+			var alienPKCSKey = Mockito.mock(PrivateKey.class);
+			Mockito.doReturn("X-Wing").when(alienPKCSKey).getAlgorithm();
+			Mockito.doReturn(bcEncoded.getEncoded()).when(alienPKCSKey).getEncoded();
+			Mockito.doReturn("PKCS#8").when(alienPKCSKey).getFormat();
+
+			var key = keyFactory.translateKey(alienPKCSKey);
 
 			Assertions.assertArrayEquals(keyPair.getPrivate().getEncoded(), key.getEncoded());
 		}
