@@ -1,6 +1,7 @@
 package org.cryptomator.jose.hpke;
 
 import org.cryptomator.jose.util.ArrayUtil;
+import org.cryptomator.jose.util.X25519;
 
 import javax.crypto.KeyAgreement;
 import java.math.BigInteger;
@@ -105,15 +106,7 @@ class XwingPublicKey implements PublicKey {
 	/// returns the X25519 public key part (`pk_X = pk[1184:1216]`)
 	/// @return a new {@link XECPublicKey} instance
 	public XECPublicKey getX25519PublicKey() {
-		try {
-			KeyFactory keyFactory = KeyFactory.getInstance("X25519");
-			var u = new BigInteger(1, ArrayUtil.reverse(getX())); // really reverse?
-			return (XECPublicKey) keyFactory.generatePublic(new XECPublicKeySpec(NamedParameterSpec.X25519, u));
-		} catch (NoSuchAlgorithmException e) {
-			throw new UnsupportedOperationException("JVM does not support X25519", e);
-		} catch (InvalidKeySpecException e) {
-			throw new IllegalStateException("Internal error", e);
-		}
+		return X25519.publicKey(getX());
 	}
 
 	/// returns the X25519 public key part (`pk_X = pk[1184:1216]`)

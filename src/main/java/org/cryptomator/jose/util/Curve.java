@@ -1,17 +1,15 @@
 package org.cryptomator.jose.util;
 
 import java.security.AlgorithmParameters;
-import java.security.AsymmetricKey;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
-import java.security.PublicKey;
 import java.security.interfaces.ECKey;
-import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
+import java.security.spec.EllipticCurve;
 import java.security.spec.InvalidParameterSpecException;
 
 public enum Curve {
@@ -66,6 +64,15 @@ public enum Curve {
 
 	public ECPublicKey validate(ECPublicKey publicKey) throws IllegalArgumentException {
 		return ECHelper.validateKey(ensureSameCurve(publicKey), getCurveParams());
+	}
+
+	public static Curve valueOf(EllipticCurve ellipticCurve) {
+		for (Curve c : values()) {
+			if (c.getCurveParams().getCurve().equals(ellipticCurve)) {
+				return c;
+			}
+		}
+		throw new IllegalArgumentException("Unknown elliptic curve: " + ellipticCurve);
 	}
 
 //		public ECPublicKey importPublicKey(X509EncodedKeySpec keySpec) throws InvalidKeySpecException {

@@ -2,6 +2,7 @@ package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.util.Curve;
 import org.cryptomator.jose.util.Destroyables;
 import org.cryptomator.jose.util.ECHelper;
@@ -74,7 +75,17 @@ public final class EcdhEsAlg extends AbstractAlg {
 		if (!combinedHeader.has("epk")) {
 			throw new IllegalStateException("No ephemeral public key available for decryption.");
 		}
-		var epk = fromJwk(combinedHeader.get("epk").getAsJsonObject());
+		ECPublicKey epk;
+		try {
+			var key = ECHelper.fromJwk(combinedHeader.get("epk").getAsJsonObject());
+			if (key instanceof ECPublicKey k) {
+				epk = k;
+			} else {
+				throw new DecryptKeyException("Ephemeral key is not an EC public key");
+			}
+		} catch (JoseParseException e) {
+			throw new DecryptKeyException("Invalid 'epk'", e);
+		}
 
 		// derive shared secret using ECDH-ES:
 		var sharedSecret = ecdh(epk, privateKey);
@@ -158,7 +169,7 @@ public final class EcdhEsAlg extends AbstractAlg {
 		// assemble header
 		JsonObject perRecipientHeader = new JsonObject();
 		perRecipientHeader.addProperty("alg", type.jwaAlgName);
-		perRecipientHeader.add("epk", toJwk(ephPublicKey));
+		perRecipientHeader.add("epk", ECHelper.toJwk(ephPublicKey));
 //		perRecipientHeader.addProperty("apu", combinedHeader.get("apu").getAsString());
 //		perRecipientHeader.addProperty("apv", combinedHeader.get("apv").getAsString());
 		return new EncryptionResult(encryptedKey, perRecipientHeader);
@@ -174,41 +185,6 @@ public final class EcdhEsAlg extends AbstractAlg {
 			throw new UnsupportedOperationException("JVM does not support ECDH", e);
 		} catch (InvalidKeyException e) {
 			throw new IllegalStateException("Unsuitable key", e);
-		}
-	}
-
-	private JsonObject toJwk(ECPublicKey publicKey) {
-		JsonObject jwk = new JsonObject();
-		jwk.addProperty("kty", EC_ALG);
-		jwk.addProperty("crv", curve.jwaCrvName);
-		jwk.addProperty("x", Base64.getUrlEncoder().withoutPadding().encodeToString(publicKey.getW().getAffineX().toByteArray()));
-		jwk.addProperty("y", Base64.getUrlEncoder().withoutPadding().encodeToString(publicKey.getW().getAffineY().toByteArray()));
-		return jwk;
-	}
-
-	private ECPublicKey fromJwk(JsonObject epk) throws DecryptKeyException {
-		if (!epk.has("kty") || !epk.get("kty").getAsString().equals(EC_ALG)) {
-			throw new DecryptKeyException("Not an EC key");
-		}
-		if (!epk.has("crv") || !epk.get("crv").getAsString().equals(curve.jwaCrvName)) {
-			throw new DecryptKeyException("Key not for curve " + curve.jwaCrvName);
-		}
-		try {
-			var keyFactory = KeyFactory.getInstance(EC_ALG);
-			var point = new ECPoint(
-					new BigInteger(1, Base64.getUrlDecoder().decode(epk.get("x").getAsString())),
-					new BigInteger(1, Base64.getUrlDecoder().decode(epk.get("y").getAsString()))
-			);
-			var keySpec = new ECPublicKeySpec(point, curve.getCurveParams());
-			if (keyFactory.generatePublic(keySpec) instanceof ECPublicKey k) {
-				return ECHelper.validateKey(k, curve.getCurveParams());
-			} else {
-				throw new AssertionError("Key imported by EC key factory not an EC key");
-			}
-		} catch (NoSuchAlgorithmException e) {
-			throw new UnsupportedOperationException("JVM does not support elliptic curves", e);
-		} catch (InvalidKeySpecException e) {
-			throw new DecryptKeyException("Unsuitable key spec", e);
 		}
 	}
 
