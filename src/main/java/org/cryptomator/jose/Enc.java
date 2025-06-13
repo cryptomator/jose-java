@@ -1,13 +1,14 @@
 package org.cryptomator.jose;
 
-import org.cryptomator.jose.enc.A256GCM;
+import org.cryptomator.jose.enc.AESGCM;
 
 /// Content Encryption Algorithms as specified by [RFC 7518](https://datatracker.ietf.org/doc/html/rfc7518#section-5.1)
-public sealed interface Enc permits A256GCM {
+public sealed interface Enc permits AESGCM {
 
 	// TODO A128CBC-HS256 and A256CBC-HS512 are required by spec
 
-	Enc A256GCM = new A256GCM();
+	Enc A256GCM = new AESGCM("A256GCM", 32);
+	Enc A128GCM = new AESGCM("A128GCM", 16);
 
 	String encValue();
 

@@ -7,7 +7,6 @@ import org.cryptomator.jose.util.CryptoHelper;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
-import javax.crypto.DecapsulateException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.GCMParameterSpec;
@@ -16,20 +15,28 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
-public final class A256GCM implements Enc {
+public final class AESGCM implements Enc {
 
 	private static final String CIPHER_ALG_NAME = "AES/GCM/NoPadding";
 	private static final String SECRET_KEY_ALG_NAME = "AES";
 	private static final int TAG_LEN_BYTES = 16;
 
+	private final String name;
+	private final int keyLength;
+
+	public AESGCM(String name, int keyLength) {
+		this.name = name;
+		this.keyLength = keyLength;
+	}
+
 	@Override
 	public String encValue() {
-		return "A256GCM";
+		return name;
 	}
 
 	@Override
 	public byte[] generateCek() {
-		return CryptoHelper.randomBytes(32);
+		return CryptoHelper.randomBytes(keyLength);
 	}
 
 	@Override

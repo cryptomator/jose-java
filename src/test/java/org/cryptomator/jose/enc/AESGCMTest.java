@@ -7,7 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-class A256GCMTest {
+class AESGCMTest {
 
 	// test vectors 1-10 from wycheproof: https://github.com/C2SP/wycheproof/blob/df4e933efef449fc88af0c06e028d425d84a9495/testvectors/aes_gcm_test.json
 	@DisplayName("Encrypt with A256GCM")
@@ -25,7 +25,7 @@ class A256GCMTest {
 			"a8ee11b26d7ceb7f17eaa1e4b83a2cf6, fbbc04fd6e025b7193eb57f6, '', c08f085e6a9e0ef3636280c11ecfadf0c1e72919ffc17eaf, 7cd9f4e4f365704fff3b9900aa93ba54b672bac554275650, f4eb193241226db017b32ec38ca47217",
 	})
 	public void testEncrypt(@Hex byte[] key, @Hex byte[] iv, @Hex byte[] aad, @Hex byte[] plaintext, @Hex byte[] ciphertext, @Hex byte[] tag) {
-		var alg = new A256GCM();
+		var alg = new AESGCM("A256GCM", 32);
 
 		var result = alg.encrypt(key, iv, aad, plaintext);
 
@@ -49,7 +49,7 @@ class A256GCMTest {
 			"a8ee11b26d7ceb7f17eaa1e4b83a2cf6, fbbc04fd6e025b7193eb57f6, '', c08f085e6a9e0ef3636280c11ecfadf0c1e72919ffc17eaf, 7cd9f4e4f365704fff3b9900aa93ba54b672bac554275650, f4eb193241226db017b32ec38ca47217",
 	})
 	public void testDecrypt(@Hex byte[] key, @Hex byte[] iv, @Hex byte[] aad, @Hex byte[] plaintext, @Hex byte[] ciphertext, @Hex byte[] tag) throws JoseDecryptException {
-		var alg = new A256GCM();
+		var alg = new AESGCM("A256GCM", 32);
 
 		var result = alg.decrypt(key, iv, aad, ciphertext, tag);
 
