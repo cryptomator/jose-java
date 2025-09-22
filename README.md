@@ -9,7 +9,7 @@
 
 ### Encrypt with quantum-secure HPKE-7 (X-Wing)
 ```java
-// encrpyt with HPKE-2 (ECDH-ES):
+// encrpyt with HPKE-7 (X-Wing):
 var encrypted = JWE.build("payload")
 		.encrypt(Enc.A256GCM, Alg.hpke7(receiverPublicKey))
 		.toCompactSerialization();
