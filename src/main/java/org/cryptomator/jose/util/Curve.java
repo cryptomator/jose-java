@@ -13,19 +13,21 @@ import java.security.spec.EllipticCurve;
 import java.security.spec.InvalidParameterSpecException;
 
 public enum Curve {
-	P256("P-256", "secp256r1"),
-	P384("P-384", "secp384r1"),
-	P521("P-521", "secp521r1"),
+	P256("P-256", "secp256r1", 32),
+	P384("P-384", "secp384r1", 48),
+	P521("P-521", "secp521r1", 66),
 	;
 
 	private static final String EC_ALG = "EC";
 
 	public final String jwaCrvName;
 	public final String jcaCurveName;
+	public final int coordinateByteLength;
 
-	Curve(String jwaCrvName, String jcaCurveName) {
+	Curve(String jwaCrvName, String jcaCurveName, int coordinateByteLength) {
 		this.jwaCrvName = jwaCrvName;
 		this.jcaCurveName = jcaCurveName;
+		this.coordinateByteLength = coordinateByteLength;
 	}
 
 	public KeyPair generateKeyPair() {

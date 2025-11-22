@@ -66,11 +66,22 @@ public class ECHelper {
 	}
 
 	public static JsonObject toJwk(ECPublicKey publicKey) {
+		var curve = Curve.valueOf(publicKey.getParams().getCurve());
+		var x = publicKey.getW().getAffineX().toByteArray();
+		var y = publicKey.getW().getAffineY().toByteArray();
+		if (x.length > curve.coordinateByteLength || y.length > curve.coordinateByteLength) {
+			throw new IllegalArgumentException("EC public key coordinates for curve " + curve.jwaCrvName + " exceed expected length of " + curve.coordinateByteLength);
+		}
+		var paddedX = new byte[curve.coordinateByteLength];
+		var paddedY = new byte[curve.coordinateByteLength];
+		System.arraycopy(x, 0, paddedX, paddedX.length - x.length, x.length);
+		System.arraycopy(y, 0, paddedY, paddedY.length - y.length, y.length);
+
 		JsonObject jwk = new JsonObject();
 		jwk.addProperty("kty", EC_ALG);
-		jwk.addProperty("crv", Curve.valueOf(publicKey.getParams().getCurve()).jwaCrvName);
-		jwk.addProperty("x", Base64.getUrlEncoder().withoutPadding().encodeToString(publicKey.getW().getAffineX().toByteArray()));
-		jwk.addProperty("y", Base64.getUrlEncoder().withoutPadding().encodeToString(publicKey.getW().getAffineY().toByteArray()));
+		jwk.addProperty("crv", curve.jwaCrvName);
+		jwk.addProperty("x", Base64.getUrlEncoder().withoutPadding().encodeToString(paddedX));
+		jwk.addProperty("y", Base64.getUrlEncoder().withoutPadding().encodeToString(paddedY));
 		return jwk;
 	}
 
