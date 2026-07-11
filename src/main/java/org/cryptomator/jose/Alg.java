@@ -40,14 +40,14 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
-		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384,null, k);
+		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, null, Curve.P384.ensureSameCurve(k));
 	}
 
 	static KeyEncryptionAlg ecdhEs(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
-		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, k, null);
+		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, Curve.P384.ensureSameCurve(k), null);
 	}
 
 	/// Integrated Encryption with `HPKE-0`, as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5)
