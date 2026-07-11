@@ -8,6 +8,7 @@ import org.cryptomator.jose.KeyEncryptionAlg;
 import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 
 /// @param protectedHeader BASE64URL(UTF8(JWE Protected Header))
@@ -25,24 +26,27 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 
 		// generate cek:
 		var cek = enc.generateCek();
+		try {
+			// prepare protected header:
+			var protectedHeader = builder.protectedHeader().deepCopy();
+			protectedHeader.addProperty("enc", enc.encValue());
 
-		// prepare protected header:
-		var protectedHeader = builder.protectedHeader().deepCopy();
-		protectedHeader.addProperty("enc", enc.encValue());
+			// prepare recipient object:
+			var algResult = alg.encrypt(protectedHeader, cek);
+			var recipientsArray = new JsonArray(1);
+			var recipientObj = new JsonObject();
+			recipientObj.addProperty("encrypted_key", base64url.encodeToString(algResult.encryptedKey()));
+			recipientsArray.add(recipientObj);
 
-		// prepare recipient object:
-		var algResult = alg.encrypt(protectedHeader, cek);
-		var recipientsArray = new JsonArray(1);
-		var recipientObj = new JsonObject();
-		recipientObj.addProperty("encrypted_key", base64url.encodeToString(algResult.encryptedKey()));
-		recipientsArray.add(recipientObj);
+			// finalize protected header:
+			protectedHeader = JsonHelper.union(algResult.recipientSpecificHeader(), protectedHeader);
+			var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
 
-		// finalize protected header:
-		protectedHeader = JsonHelper.union(algResult.recipientSpecificHeader(), protectedHeader);
-		var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
-
-		// encrypt payload:
-		return encrypt(enc, cek, encodedProtectedHeader, recipientsArray, new JsonObject(), builder.payload(), "");
+			// encrypt payload:
+			return encrypt(enc, cek, encodedProtectedHeader, recipientsArray, new JsonObject(), builder.payload(), "");
+		} finally {
+			Arrays.fill(cek, (byte) 0x00);
+		}
 	}
 
 	static EncryptedJWEImpl build(ComplexBuilder builder, Enc enc, KeyEncryptionAlg... algs) {
@@ -50,28 +54,31 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 
 		// generate and encrypt cek:
 		var cek = enc.generateCek();
+		try {
+			// prepare protected header:
+			var protectedHeader = builder.protectedHeader().deepCopy();
+			protectedHeader.addProperty("enc", enc.encValue());
 
-		// prepare protected header:
-		var protectedHeader = builder.protectedHeader().deepCopy();
-		protectedHeader.addProperty("enc", enc.encValue());
+			// prepare recipient objects:
+			JsonArray recipientsArray = new JsonArray();
+			for (KeyEncryptionAlg alg : algs) {
+				var combinedHeader = JsonHelper.union(protectedHeader, builder.unprotectedHeader()); // FIXME: add alg.recipientSpecificHeader()
+				var algResult = alg.encrypt(combinedHeader, cek);
+				var recipientObj = new JsonObject();
+				recipientObj.addProperty("encrypted_key", base64url.encodeToString(algResult.encryptedKey()));
+				recipientObj.add("header", algResult.recipientSpecificHeader());
+				recipientsArray.add(recipientObj);
+			}
 
-		// prepare recipient objects:
-		JsonArray recipientsArray = new JsonArray();
-		for (KeyEncryptionAlg alg : algs) {
-			var combinedHeader = JsonHelper.union(protectedHeader, builder.unprotectedHeader()); // FIXME: add alg.recipientSpecificHeader()
-			var algResult = alg.encrypt(combinedHeader, cek);
-			var recipientObj = new JsonObject();
-			recipientObj.addProperty("encrypted_key", base64url.encodeToString(algResult.encryptedKey()));
-			recipientObj.add("header", algResult.recipientSpecificHeader());
-			recipientsArray.add(recipientObj);
+			// finalize protected header:
+			// TODO: if all recipients use the same alg, move it to protected header! see https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6
+			var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
+
+			// encrypt payload:
+			return encrypt(enc, cek, encodedProtectedHeader, recipientsArray, builder.unprotectedHeader(), builder.payload(), builder.aad());
+		} finally {
+			Arrays.fill(cek, (byte) 0x00);
 		}
-
-		// finalize protected header:
-		// TODO: if all recipients use the same alg, move it to protected header! see https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6
-		var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
-
-		// encrypt payload:
-		return encrypt(enc, cek, encodedProtectedHeader, recipientsArray, builder.unprotectedHeader(), builder.payload(), builder.aad());
 	}
 
 	// https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5

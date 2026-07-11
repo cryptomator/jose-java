@@ -32,15 +32,21 @@ public enum Shake implements Kdf {
 		if (sharedSecretBytes == null) {
 			throw new IllegalArgumentException("Shared secret is not extractable");
 		}
-		var secrets = ArrayUtil.concat(lengthPrefixed(psk), lengthPrefixed(sharedSecretBytes));
-		var context = ArrayUtil.concat(new byte[]{mode}, lengthPrefixed(pskId), lengthPrefixed(info));
-		var secret = labeledDerive(suiteId, secrets, "secret", context, nk + nn + nh);
+		var prefixedSharedSecret = new byte[0];
+		var secrets = new byte[0];
+		var context = new byte[0];
+		var secret = new byte[0];
 		try {
+			prefixedSharedSecret = lengthPrefixed(sharedSecretBytes);
+			secrets = ArrayUtil.concat(lengthPrefixed(psk), prefixedSharedSecret);
+			context = ArrayUtil.concat(new byte[]{mode}, lengthPrefixed(pskId), lengthPrefixed(info));
+			secret = labeledDerive(suiteId, secrets, "secret", context, nk + nn + nh);
 			var key = new SecretKeySpec(secret, 0, nk, keyAlg);
 			var baseNonce = Arrays.copyOfRange(secret, nk, nk + nn);
 			return new DerivedKeys(key, baseNonce); // exporter_secret (secret[nk + nn:]) is unused
 		} finally {
 			Arrays.fill(sharedSecretBytes, (byte) 0x00);
+			Arrays.fill(prefixedSharedSecret, (byte) 0x00);
 			Arrays.fill(secrets, (byte) 0x00);
 			Arrays.fill(secret, (byte) 0x00);
 		}
