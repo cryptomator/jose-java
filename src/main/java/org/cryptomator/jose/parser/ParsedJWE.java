@@ -6,6 +6,7 @@ import com.google.gson.JsonParser;
 import org.cryptomator.jose.DecryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.enc.DecryptCiphertextException;
+import org.cryptomator.jose.util.Ascii;
 import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
@@ -38,6 +39,12 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		var sharedHeader = JsonHelper.disjointUnion(parsedProtectedHeader, unprotectedHeader);
 
 		var combinedAad = protectedHeader + (aad.isEmpty() ? "" : "." + aad);
+		final byte[] combinedAadBytes;
+		try {
+			combinedAadBytes = Ascii.strictBytes(combinedAad); // the protected header and aad are base64url per RFC 7516, hence ASCII; reject anything else rather than silently substituting '?'
+		} catch (IllegalArgumentException e) {
+			throw new JoseDecryptException("Malformed JWE: protected header and aad must be US-ASCII", e);
+		}
 		var decodedIv = base64url.decode(iv);
 		var decodedCiphertext = base64url.decode(ciphertext);
 		var decodedTag = base64url.decode(tag);
@@ -51,7 +58,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 					: new JsonObject();
 			var combinedHeader = JsonHelper.disjointUnion(perRecipientUnprotectedHeader, sharedHeader);
 			var algValue = combinedHeader.get("alg").getAsString();
-			var parts = new DecryptionAlg.JweParts(encryptedKey, decodedIv, decodedCiphertext, decodedTag, combinedAad.getBytes(StandardCharsets.US_ASCII));
+			var parts = new DecryptionAlg.JweParts(encryptedKey, decodedIv, decodedCiphertext, decodedTag, combinedAadBytes);
 			for (var alg : algs) {
 				if (!algValue.equals(alg.name())) {
 					continue;

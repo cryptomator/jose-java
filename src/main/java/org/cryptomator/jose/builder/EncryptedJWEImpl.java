@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.IntegratedEncryptionAlg;
 import org.cryptomator.jose.KeyEncryptionAlg;
+import org.cryptomator.jose.util.Ascii;
 import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
@@ -98,7 +99,7 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		var combinedAad = encodedProtectedHeader + (builder.aad().isEmpty() ? "" : "." + builder.aad());
 
 		// encrypt payload:
-		var sealed = alg.seal(builder.payload().getBytes(StandardCharsets.UTF_8), combinedAad.getBytes(StandardCharsets.US_ASCII));
+		var sealed = alg.seal(builder.payload().getBytes(StandardCharsets.UTF_8), Ascii.strictBytes(combinedAad));
 
 		// assemble JWE (the encapsulated secret is the encrypted key; iv and tag are empty):
 		var recipientObj = new JsonObject();
@@ -114,7 +115,7 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		var iv = enc.generateIv();
 		var encodedIv = base64url.encodeToString(iv);
 		var combinedAad = protectedHeader + (aad.isEmpty() ? "" : "." + aad);
-		var encResult = enc.encrypt(cek, iv, combinedAad.getBytes(StandardCharsets.US_ASCII), payload.getBytes(StandardCharsets.UTF_8));
+		var encResult = enc.encrypt(cek, iv, Ascii.strictBytes(combinedAad), payload.getBytes(StandardCharsets.UTF_8));
 		var encodedCiphertext = base64url.encodeToString(encResult.ciphertext());
 		var encodedTag = base64url.encodeToString(encResult.tag());
 
