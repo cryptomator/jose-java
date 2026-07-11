@@ -1,6 +1,7 @@
 package org.cryptomator.jose;
 
 import org.cryptomator.jose.alg.EcdhEsAlg;
+import org.cryptomator.jose.alg.HPKEIntegratedAlg;
 import org.cryptomator.jose.alg.HPKEKeyEncryptionAlg;
 import org.cryptomator.jose.alg.Pbes2Alg;
 import org.cryptomator.jose.hpke.HPKE;
@@ -25,7 +26,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 
 	// TODO: which algorithms do we want to expose here?
 
-	static EncryptionAlg pbes2(char[] password, int iterationCount) {
+	static KeyEncryptionAlg pbes2(char[] password, int iterationCount) {
 		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, iterationCount);
 	}
 
@@ -40,15 +41,41 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384,null, k);
 	}
 
-	static EncryptionAlg ecdhEs(PublicKey publicKey) {
+	static KeyEncryptionAlg ecdhEs(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
 		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, k, null);
 	}
 
+	/// Integrated Encryption with `HPKE-2`, as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5)
+	static IntegratedEncryptionAlg hpke2(PublicKey publicKey) {
+		if (!(publicKey instanceof ECPublicKey k)) {
+			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
+		}
+		return new HPKEIntegratedAlg(HPKE.hpke2(), Curve.P521.ensureSameCurve(k), null);
+	}
+
+	/// Integrated Encryption with `HPKE-2`, as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5)
+	static DecryptionAlg hpke2(PrivateKey privateKey) {
+		if (!(privateKey instanceof ECPrivateKey k)) {
+			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
+		}
+		return new HPKEIntegratedAlg(HPKE.hpke2(), null, Curve.P521.ensureSameCurve(k));
+	}
+
+	/// Integrated Encryption with `HPKE-9`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
+	static IntegratedEncryptionAlg hpke9(PublicKey publicKey) {
+		return new HPKEIntegratedAlg(HPKE.hpke9(), asXwingPublicKey(publicKey), null);
+	}
+
+	/// Integrated Encryption with `HPKE-9`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
+	static DecryptionAlg hpke9(PrivateKey privateKey) {
+		return new HPKEIntegratedAlg(HPKE.hpke9(), null, asXwingPrivateKey(privateKey));
+	}
+
 	/// Key Encryption with `HPKE-2-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
-	static EncryptionAlg hpke2Ke(PublicKey publicKey) {
+	static KeyEncryptionAlg hpke2Ke(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
@@ -64,7 +91,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Key Encryption with `HPKE-9-KE`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
-	static EncryptionAlg hpke9Ke(PublicKey publicKey) {
+	static KeyEncryptionAlg hpke9Ke(PublicKey publicKey) {
 		return new HPKEKeyEncryptionAlg(HPKE.hpke9(), asXwingPublicKey(publicKey), null);
 	}
 

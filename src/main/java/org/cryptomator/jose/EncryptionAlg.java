@@ -1,13 +1,8 @@
 package org.cryptomator.jose;
 
-import com.google.gson.JsonObject;
-import org.cryptomator.jose.alg.AbstractAlg;
-
-public sealed interface EncryptionAlg extends Alg permits AbstractAlg {
-
-	EncryptionResult encrypt(JsonObject combinedHeader, byte[] cek);
-
-	record EncryptionResult(byte[] encryptedKey, JsonObject recipientSpecificHeader) {
-	}
+/// An algorithm capable of encrypting a JWE for one recipient (holding the recipient's public key or password).
+/// The JWE Key Management Mode is determined by the subtype: [KeyEncryptionAlg] encrypts a content encryption key,
+/// [IntegratedEncryptionAlg] encrypts the payload itself.
+public sealed interface EncryptionAlg extends Alg permits KeyEncryptionAlg, IntegratedEncryptionAlg {
 
 }

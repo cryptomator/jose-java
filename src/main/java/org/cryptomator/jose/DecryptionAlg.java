@@ -3,8 +3,9 @@ package org.cryptomator.jose;
 
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.alg.AbstractAlg;
+import org.cryptomator.jose.alg.HPKEIntegratedAlg;
 
-public sealed interface DecryptionAlg extends Alg permits AbstractAlg {
+public sealed interface DecryptionAlg extends Alg permits AbstractAlg, HPKEIntegratedAlg {
 
 	/// Decrypts one recipient's view of the JWE, returning the payload.
 	///
@@ -12,6 +13,8 @@ public sealed interface DecryptionAlg extends Alg permits AbstractAlg {
 	/// @param parts The raw JWE parts
 	byte[] decrypt(JsonObject combinedHeader, JweParts parts) throws JoseDecryptException;
 
+	/// The raw (base64url-decoded) parts of a JWE relevant for decrypting one recipient.
+	///
 	/// @param encryptedKey The recipient's JWE Encrypted Key (Key Encryption: the encrypted CEK; Integrated Encryption: the HPKE encapsulated secret)
 	/// @param iv JWE Initialization Vector (empty for Integrated Encryption)
 	/// @param ciphertext JWE Ciphertext

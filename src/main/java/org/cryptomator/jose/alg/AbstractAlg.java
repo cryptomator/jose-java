@@ -3,12 +3,12 @@ package org.cryptomator.jose.alg;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.DecryptionAlg;
 import org.cryptomator.jose.Enc;
-import org.cryptomator.jose.EncryptionAlg;
+import org.cryptomator.jose.KeyEncryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
 
 import java.util.Arrays;
 
-public sealed abstract class AbstractAlg implements DecryptionAlg, EncryptionAlg permits EcdhEsAlg, Pbes2Alg, HPKEKeyEncryptionAlg {
+public sealed abstract class AbstractAlg implements DecryptionAlg, KeyEncryptionAlg permits EcdhEsAlg, Pbes2Alg, HPKEKeyEncryptionAlg {
 
 	@Override
 	public final byte[] decrypt(JsonObject combinedHeader, JweParts parts) throws JoseDecryptException {

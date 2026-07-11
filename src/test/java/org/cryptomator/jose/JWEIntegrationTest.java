@@ -1,6 +1,8 @@
 package org.cryptomator.jose;
 
+import com.google.gson.JsonParser;
 import org.cryptomator.jose.alg.EcdhEsAlg;
+import org.cryptomator.jose.alg.HPKEIntegratedAlg;
 import org.cryptomator.jose.alg.HPKEKeyEncryptionAlg;
 import org.cryptomator.jose.alg.Pbes2Alg;
 import org.cryptomator.jose.builder.SimpleEncryptedJWE;
@@ -62,12 +64,102 @@ class JWEIntegrationTest {
 	}
 
 	@Nested
+	@DisplayName("integrated encryption: encrypt and decrypt")
+	class IntegratedEncryptAndDecrypt {
+
+		@ParameterizedTest
+		@MethodSource("algs")
+		@DisplayName("compact serialization round trip")
+		public void testCompactRoundTrip(HPKEIntegratedAlg alg) throws JoseException {
+			var encrypted = JWE.build("payload").encrypt(alg).toCompactSerialization();
+			var decrypted = JWE.parse(encrypted).decrypt(alg);
+			Assertions.assertEquals("payload", decrypted.payload());
+		}
+
+		@ParameterizedTest
+		@MethodSource("algs")
+		@DisplayName("general JSON serialization round trip")
+		public void testJsonRoundTrip(HPKEIntegratedAlg alg) throws JoseException {
+			var encrypted = JWE.build("payload").encrypt(alg).toJsonSerialization();
+			var decrypted = JWE.parse(encrypted).decrypt(alg);
+			Assertions.assertEquals("payload", decrypted.payload());
+		}
+
+		@ParameterizedTest
+		@MethodSource("algs")
+		@DisplayName("flattened JSON serialization with AAD round trip")
+		public void testFlattenedWithAadRoundTrip(HPKEIntegratedAlg alg) throws JoseException {
+			var encrypted = JWE.build("payload").withAad("eyJmb28iOiJiYXIifQ").encrypt(alg).toFlattenedJsonSerialization();
+			var decrypted = JWE.parse(encrypted).decrypt(alg);
+			Assertions.assertEquals("payload", decrypted.payload());
+			Assertions.assertEquals("eyJmb28iOiJiYXIifQ", decrypted.aad());
+		}
+
+		@ParameterizedTest
+		@MethodSource("algs")
+		@DisplayName("no enc/ek/iv/tag on the wire")
+		public void testWireShape(HPKEIntegratedAlg alg) throws JoseException {
+			var encrypted = JWE.build("payload").encrypt(alg).toFlattenedJsonSerialization();
+			var json = JsonParser.parseString(encrypted).getAsJsonObject();
+			Assertions.assertFalse(json.has("iv"));
+			Assertions.assertFalse(json.has("tag"));
+			var protectedHeader = JWE.parse(encrypted).parsedProtectedHeader();
+			Assertions.assertFalse(protectedHeader.has("enc"));
+			Assertions.assertFalse(protectedHeader.has("ek"));
+			Assertions.assertEquals(alg.name(), protectedHeader.get("alg").getAsString());
+		}
+
+		@Test
+		@DisplayName("wrong key is skipped, matching key decrypts")
+		public void testMultipleCandidateKeys() throws JoseException, GeneralSecurityException {
+			var xwingKeyGen = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE);
+			var rightKeyPair = xwingKeyGen.generateKeyPair();
+			var wrongKeyPair = xwingKeyGen.generateKeyPair();
+
+			var encrypted = JWE.build("payload").encrypt(Alg.hpke9(rightKeyPair.getPublic())).toCompactSerialization();
+			var decrypted = JWE.parse(encrypted).decrypt(Alg.hpke9(wrongKeyPair.getPrivate()), Alg.hpke9(rightKeyPair.getPrivate()));
+			Assertions.assertEquals("payload", decrypted.payload());
+		}
+
+		@Test
+		@DisplayName("key encryption alg does not match integrated encryption token")
+		public void testModeMismatch() throws GeneralSecurityException, JoseParseException {
+			var xwingKeyGen = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE);
+			var keyPair = xwingKeyGen.generateKeyPair();
+
+			var encrypted = JWE.build("payload").encrypt(Alg.hpke9(keyPair.getPublic())).toCompactSerialization();
+			var parsed = JWE.parse(encrypted);
+			Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(Alg.hpke9Ke(keyPair.getPrivate()))); // "HPKE-9-KE" does not match "HPKE-9"
+		}
+
+		static Stream<Arguments> algs() throws GeneralSecurityException {
+			var ecKeyGen = KeyPairGenerator.getInstance("EC");
+			ecKeyGen.initialize(new ECGenParameterSpec("secp256r1"));
+			var p256KeyPair = ecKeyGen.generateKeyPair();
+			ecKeyGen.initialize(new ECGenParameterSpec("secp384r1"));
+			var p384KeyPair = ecKeyGen.generateKeyPair();
+			ecKeyGen.initialize(new ECGenParameterSpec("secp521r1"));
+			var p521KeyPair = ecKeyGen.generateKeyPair();
+			var xwingKeyGen = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE);
+			var xwingKeyPair = xwingKeyGen.generateKeyPair();
+
+			return Stream.of(
+					Arguments.argumentSet("HPKE-0", new HPKEIntegratedAlg(HPKE.hpke0(), p256KeyPair.getPublic(), p256KeyPair.getPrivate())),
+					Arguments.argumentSet("HPKE-1", new HPKEIntegratedAlg(HPKE.hpke1(), p384KeyPair.getPublic(), p384KeyPair.getPrivate())),
+					Arguments.argumentSet("HPKE-2", new HPKEIntegratedAlg(HPKE.hpke2(), p521KeyPair.getPublic(), p521KeyPair.getPrivate())),
+					Arguments.argumentSet("HPKE-9", new HPKEIntegratedAlg(HPKE.hpke9(), xwingKeyPair.getPublic(), xwingKeyPair.getPrivate()))
+			);
+		}
+
+	}
+
+	@Nested
 	@DisplayName("encrypt and decrypt")
 	class EncryptAndDecrypt {
 
 		@ParameterizedTest
 		@MethodSource
-		public void testEncryptAndDecrypt(EncryptionAlg encAlg, DecryptionAlg decAlg) throws JoseException {
+		public void testEncryptAndDecrypt(KeyEncryptionAlg encAlg, DecryptionAlg decAlg) throws JoseException {
 			var encrypted = JWE.build("payload").encrypt(Enc.A256GCM, encAlg).toJsonSerialization();
 			var decrypted = JWE.parse(encrypted).decrypt(decAlg);
 			Assertions.assertEquals("payload", decrypted.payload());

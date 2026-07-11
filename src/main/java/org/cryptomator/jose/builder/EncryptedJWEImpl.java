@@ -3,7 +3,8 @@ package org.cryptomator.jose.builder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.Enc;
-import org.cryptomator.jose.EncryptionAlg;
+import org.cryptomator.jose.IntegratedEncryptionAlg;
+import org.cryptomator.jose.KeyEncryptionAlg;
 import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
@@ -19,7 +20,7 @@ import java.util.Base64;
 record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, JsonArray recipients, String iv, String ciphertext, String tag, String aad) implements SimpleEncryptedJWE {
 
 	// https://www.rfc-editor.org/rfc/rfc7516#section-5.1
-	static EncryptedJWEImpl build(SimpleBuilder builder, Enc enc, EncryptionAlg alg) {
+	static EncryptedJWEImpl build(SimpleBuilder builder, Enc enc, KeyEncryptionAlg alg) {
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// generate cek:
@@ -44,7 +45,7 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		return encrypt(enc, cek, encodedProtectedHeader, recipientsArray, new JsonObject(), builder.payload(), "");
 	}
 
-	static EncryptedJWEImpl build(ComplexBuilder builder, Enc enc, EncryptionAlg... algs) {
+	static EncryptedJWEImpl build(ComplexBuilder builder, Enc enc, KeyEncryptionAlg... algs) {
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// generate and encrypt cek:
@@ -56,7 +57,7 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 
 		// prepare recipient objects:
 		JsonArray recipientsArray = new JsonArray();
-		for (EncryptionAlg alg : algs) {
+		for (KeyEncryptionAlg alg : algs) {
 			var combinedHeader = JsonHelper.union(protectedHeader, builder.unprotectedHeader()); // FIXME: add alg.recipientSpecificHeader()
 			var algResult = alg.encrypt(combinedHeader, cek);
 			var recipientObj = new JsonObject();
@@ -71,6 +72,33 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 
 		// encrypt payload:
 		return encrypt(enc, cek, encodedProtectedHeader, recipientsArray, builder.unprotectedHeader(), builder.payload(), builder.aad());
+	}
+
+	// https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5
+	static EncryptedJWEImpl build(ComplexBuilder builder, IntegratedEncryptionAlg alg) {
+		var base64url = Base64.getUrlEncoder().withoutPadding();
+
+		// prepare protected header:
+		var protectedHeader = builder.protectedHeader().deepCopy();
+		var userHeader = JsonHelper.union(protectedHeader, builder.unprotectedHeader());
+		if (userHeader.has("enc") || userHeader.has("ek")) {
+			throw new IllegalArgumentException("enc and ek headers must not be present for Integrated Encryption");
+		}
+		protectedHeader.addProperty("alg", alg.name());
+		var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
+
+		// prepare aad (input to the HPKE seal, so it must be final before encrypting):
+		var combinedAad = encodedProtectedHeader + (builder.aad().isEmpty() ? "" : "." + builder.aad());
+
+		// encrypt payload:
+		var sealed = alg.seal(builder.payload().getBytes(StandardCharsets.UTF_8), combinedAad.getBytes(StandardCharsets.US_ASCII));
+
+		// assemble JWE (the encapsulated secret is the encrypted key; iv and tag are empty):
+		var recipientObj = new JsonObject();
+		recipientObj.addProperty("encrypted_key", base64url.encodeToString(sealed.encapsulation()));
+		var recipientsArray = new JsonArray(1);
+		recipientsArray.add(recipientObj);
+		return new EncryptedJWEImpl(encodedProtectedHeader, builder.unprotectedHeader(), recipientsArray, "", base64url.encodeToString(sealed.ciphertext()), "", builder.aad());
 	}
 
 	static EncryptedJWEImpl encrypt(Enc enc, byte[] cek, String protectedHeader, JsonArray recipients, JsonObject unprotectedHeader, String payload, String aad) {
@@ -123,9 +151,13 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		if (!aad.isEmpty()) {
 			json.addProperty("aad", aad);
 		}
-		json.addProperty("iv", iv);
+		if (!iv.isEmpty()) {
+			json.addProperty("iv", iv);
+		}
 		json.addProperty("ciphertext", ciphertext);
-		json.addProperty("tag", tag);
+		if (!tag.isEmpty()) {
+			json.addProperty("tag", tag);
+		}
 		return json;
 	}
 
@@ -143,9 +175,13 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		if (!aad.isEmpty()) {
 			json.addProperty("aad", aad);
 		}
-		json.addProperty("iv", iv);
+		if (!iv.isEmpty()) {
+			json.addProperty("iv", iv);
+		}
 		json.addProperty("ciphertext", ciphertext);
-		json.addProperty("tag", tag);
+		if (!tag.isEmpty()) {
+			json.addProperty("tag", tag);
+		}
 		return json;
 	}
 }
