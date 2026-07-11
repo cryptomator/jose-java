@@ -1,5 +1,7 @@
 package org.cryptomator.jose;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.alg.HPKEIntegratedAlg;
@@ -130,6 +132,28 @@ class JWEIntegrationTest {
 			var encrypted = JWE.build("payload").encrypt(Alg.hpke9(keyPair.getPublic())).toCompactSerialization();
 			var parsed = JWE.parse(encrypted);
 			Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(Alg.hpke9Ke(keyPair.getPrivate()))); // "HPKE-9-KE" does not match "HPKE-9"
+		}
+
+		@Test
+		@DisplayName("a malformed leading recipient is skipped, a valid one decrypts")
+		public void testSkipMalformedLeadingRecipient() throws GeneralSecurityException, JoseException {
+			var xwingKeyGen = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE);
+			var keyPair = xwingKeyGen.generateKeyPair();
+
+			var json = JsonParser.parseString(JWE.build("payload").encrypt(Alg.hpke9(keyPair.getPublic())).toJsonSerialization()).getAsJsonObject();
+			// prepend a malformed recipient that trips the Integrated Encryption enc/ek guard:
+			var validRecipient = json.getAsJsonArray("recipients").get(0).getAsJsonObject();
+			var malformedRecipient = validRecipient.deepCopy();
+			var injectedHeader = new JsonObject();
+			injectedHeader.addProperty("enc", "A128GCM");
+			malformedRecipient.add("header", injectedHeader);
+			var recipients = new JsonArray();
+			recipients.add(malformedRecipient);
+			recipients.add(validRecipient);
+			json.add("recipients", recipients);
+
+			var decrypted = JWE.parse(json.toString()).decrypt(Alg.hpke9(keyPair.getPrivate()));
+			Assertions.assertEquals("payload", decrypted.payload());
 		}
 
 		static Stream<Arguments> algs() throws GeneralSecurityException {

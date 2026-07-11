@@ -27,7 +27,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
 
-public final class EcdhEsAlg extends AbstractAlg {
+public final class EcdhEsAlg extends AbstractKeyAlg {
 
 	private static final String EC_ALG = "EC";
 

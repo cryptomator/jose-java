@@ -1,7 +1,7 @@
 package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
-import org.cryptomator.jose.DecryptionAlg;
+import org.cryptomator.jose.IntegratedDecryptionAlg;
 import org.cryptomator.jose.IntegratedEncryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.hpke.HPKE;
@@ -14,7 +14,7 @@ import java.security.PublicKey;
 /// HPKE Integrated Encryption as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5):
 /// HPKE encrypts the payload directly, the encapsulated secret travels in the JWE Encrypted Key field, and the JWE Protected Header
 /// (as well as an optional JWE AAD) is bound to the ciphertext via the HPKE `aad` parameter.
-public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, DecryptionAlg {
+public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, IntegratedDecryptionAlg {
 
 	private static final byte[] EMPTY = new byte[0];
 
@@ -51,10 +51,9 @@ public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, Decrypt
 		}
 		try (var ctx = hpke.setupBaseR(parts.encryptedKey(), privateKey, EMPTY)) {
 			return ctx.open(parts.aad(), parts.ciphertext());
-		} catch (DecapsulateException e) {
-			throw new DecryptKeyException("Failed to decapsulate encrypted_key", e);
-		} catch (AEADBadTagException e) {
-			throw new DecryptKeyException("Failed to decrypt ciphertext", e); // key and content encryption are integrated, so a bad tag also means "wrong key"
+		} catch (DecapsulateException | AEADBadTagException e) {
+			// Integrated Encryption has no separate key step, so a decapsulation or authentication failure just means this recipient/key does not match.
+			throw new JoseDecryptException("Failed to open Integrated Encryption ciphertext", e);
 		}
 	}
 

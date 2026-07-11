@@ -16,10 +16,12 @@ import java.security.PublicKey;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 
-/// CEK encryption algorithm as defined in [RFC 7518 Section 4.1](https://www.rfc-editor.org/rfc/rfc7518#section-4.1)
+/// A JWE algorithm, identified by its `alg` header value. It is split by direction into [EncryptionAlg] and [DecryptionAlg], and by JWE Key Management Mode
+/// into key management (protecting a content encryption key, [RFC 7518 Section 4](https://www.rfc-editor.org/rfc/rfc7518#section-4)) and Integrated Encryption
+/// ([draft-ietf-jose-hpke-encrypt Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5), where HPKE encrypts the payload directly and there is no CEK).
 public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 
-	///  `alg` values as defined in [RFC 7518 Section 4.1](https://www.rfc-editor.org/rfc/rfc7518#section-4.1)
+	/// The `alg` (algorithm) header parameter value identifying this algorithm.
 	String name();
 
 	// FACTORY METHODS

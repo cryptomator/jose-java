@@ -1,14 +1,17 @@
 package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
-import org.cryptomator.jose.DecryptionAlg;
 import org.cryptomator.jose.Enc;
-import org.cryptomator.jose.KeyEncryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.KeyDecryptionAlg;
+import org.cryptomator.jose.KeyEncryptionAlg;
 
 import java.util.Arrays;
 
-public sealed abstract class AbstractAlg implements DecryptionAlg, KeyEncryptionAlg permits EcdhEsAlg, Pbes2Alg, HPKEKeyEncryptionAlg {
+/// Abstract base for algorithms of the Key Encryption Key Management Mode: HPKE/PBES2/ECDH-ES protect (wrap) the content encryption key (CEK),
+/// which a separate [Enc] then uses to protect the payload. Subclasses only implement [#decryptKey] (and [KeyEncryptionAlg#encrypt]);
+/// this class composes the shared decrypt flow (resolve `enc`, unwrap the CEK, decrypt the content, then wipe the CEK).
+public abstract sealed class AbstractKeyAlg implements KeyEncryptionAlg, KeyDecryptionAlg permits EcdhEsAlg, Pbes2Alg, HPKEKeyEncryptionAlg {
 
 	@Override
 	public final byte[] decrypt(JsonObject combinedHeader, JweParts parts) throws JoseDecryptException {

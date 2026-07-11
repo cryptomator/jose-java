@@ -2,10 +2,8 @@ package org.cryptomator.jose;
 
 
 import com.google.gson.JsonObject;
-import org.cryptomator.jose.alg.AbstractAlg;
-import org.cryptomator.jose.alg.HPKEIntegratedAlg;
 
-public sealed interface DecryptionAlg extends Alg permits AbstractAlg, HPKEIntegratedAlg {
+public sealed interface DecryptionAlg extends Alg permits KeyDecryptionAlg, IntegratedDecryptionAlg {
 
 	/// Decrypts one recipient's view of the JWE, returning the payload.
 	///

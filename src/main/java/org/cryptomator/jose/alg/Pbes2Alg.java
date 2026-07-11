@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.Base64;
 
 /// Key Encryption with [PBES2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8)
-public final class Pbes2Alg extends AbstractAlg {
+public final class Pbes2Alg extends AbstractKeyAlg {
 
 	public enum Type {
 		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA512", 32),

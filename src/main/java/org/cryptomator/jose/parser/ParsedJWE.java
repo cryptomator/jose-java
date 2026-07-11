@@ -5,10 +5,11 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.DecryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
-import org.cryptomator.jose.alg.DecryptKeyException;
+import org.cryptomator.jose.enc.DecryptCiphertextException;
 import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 
 /// @param protectedHeader   JWE Protected Header
@@ -42,6 +43,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		var decodedCiphertext = base64url.decode(ciphertext);
 		var decodedTag = base64url.decode(tag);
 
+		var failure = new JoseDecryptException("No matching recipient found for decryption.");
 		for (var recipient : recipients) {
 			var recipientJson = recipient.getAsJsonObject();
 			var encryptedKey = base64url.decode(recipientJson.get("encrypted_key").getAsString());
@@ -55,15 +57,16 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 				if (!algValue.equals(alg.name())) {
 					continue;
 				}
-				byte[] payload;
 				try {
-					payload = alg.decrypt(combinedHeader, parts);
-				} catch (DecryptKeyException e) {
-					continue;
+					var payload = alg.decrypt(combinedHeader, parts);
+					return new DecryptedJWE(new String(payload, StandardCharsets.UTF_8), parsedProtectedHeader, JsonHelper.union(unprotectedHeader, perRecipientUnprotectedHeader), aad);
+				} catch (DecryptCiphertextException e) {
+					throw e; // the key matched but the content is corrupt; other recipients share the same ciphertext and would fail identically
+				} catch (JoseDecryptException e) {
+					failure.addSuppressed(e); // this recipient/alg does not apply (wrong key, mode mismatch, malformed header); try the next candidate
 				}
-				return new DecryptedJWE(new String(payload, StandardCharsets.UTF_8), parsedProtectedHeader, JsonHelper.union(unprotectedHeader, perRecipientUnprotectedHeader), aad);
 			}
 		}
-		throw new JoseDecryptException("No matching recipient found for decryption.");
+		throw failure;
 	}
 }

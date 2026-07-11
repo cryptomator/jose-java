@@ -91,7 +91,10 @@ class HPKEIntegratedAlgTest {
 			unprotected.addProperty("enc", "A128GCM");
 			json.add("unprotected", unprotected);
 			var parsed = JWE.parse(json.toString());
-			Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			// the specific reason survives as a suppressed exception on the "no matching recipient" failure
+			Assertions.assertEquals(1, thrown.getSuppressed().length);
+			Assertions.assertTrue(thrown.getSuppressed()[0].getMessage().contains("enc and ek headers must not be present"));
 		}
 
 		@Test
@@ -100,7 +103,9 @@ class HPKEIntegratedAlgTest {
 			var json = JsonParser.parseString(FLATTENED_JWE).getAsJsonObject();
 			json.addProperty("iv", "hsc8LLwbgwf33MdT");
 			var parsed = JWE.parse(json.toString());
-			Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			Assertions.assertEquals(1, thrown.getSuppressed().length);
+			Assertions.assertTrue(thrown.getSuppressed()[0].getMessage().contains("iv and tag must be empty"));
 		}
 
 	}
