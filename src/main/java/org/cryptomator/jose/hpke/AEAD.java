@@ -13,7 +13,7 @@ import java.security.NoSuchAlgorithmException;
 
 public enum AEAD {
 	AES128GCM("AES-128-GCM", 16, 12, 16, AEAD::aesEncrypt, AEAD::aesDecrypt),
-	AES256GCM("AES-128-GCM", 32, 12, 16, AEAD::aesEncrypt, AEAD::aesDecrypt),
+	AES256GCM("AES-256-GCM", 32, 12, 16, AEAD::aesEncrypt, AEAD::aesDecrypt),
 	;
 
 	/// AEAD name

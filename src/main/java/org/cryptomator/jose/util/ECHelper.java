@@ -67,22 +67,31 @@ public class ECHelper {
 
 	public static JsonObject toJwk(ECPublicKey publicKey) {
 		var curve = Curve.valueOf(publicKey.getParams().getCurve());
-		var x = publicKey.getW().getAffineX().toByteArray();
-		var y = publicKey.getW().getAffineY().toByteArray();
-		if (x.length > curve.coordinateByteLength || y.length > curve.coordinateByteLength) {
-			throw new IllegalArgumentException("EC public key coordinates for curve " + curve.jwaCrvName + " exceed expected length of " + curve.coordinateByteLength);
-		}
-		var paddedX = new byte[curve.coordinateByteLength];
-		var paddedY = new byte[curve.coordinateByteLength];
-		System.arraycopy(x, 0, paddedX, paddedX.length - x.length, x.length);
-		System.arraycopy(y, 0, paddedY, paddedY.length - y.length, y.length);
+		var x = toUnsignedBytes(publicKey.getW().getAffineX(), curve);
+		var y = toUnsignedBytes(publicKey.getW().getAffineY(), curve);
 
 		JsonObject jwk = new JsonObject();
 		jwk.addProperty("kty", EC_ALG);
 		jwk.addProperty("crv", curve.jwaCrvName);
-		jwk.addProperty("x", Base64.getUrlEncoder().withoutPadding().encodeToString(paddedX));
-		jwk.addProperty("y", Base64.getUrlEncoder().withoutPadding().encodeToString(paddedY));
+		jwk.addProperty("x", Base64.getUrlEncoder().withoutPadding().encodeToString(x));
+		jwk.addProperty("y", Base64.getUrlEncoder().withoutPadding().encodeToString(y));
 		return jwk;
+	}
+
+	// fixed-length big-endian unsigned encoding of a coordinate: BigInteger#toByteArray may prepend a zero sign byte, which must be stripped; shorter values are left-padded with zeros
+	private static byte[] toUnsignedBytes(BigInteger coordinate, Curve curve) {
+		var bytes = coordinate.toByteArray();
+		var skip = bytes.length - curve.coordinateByteLength;
+		if (skip > 1 || (skip == 1 && bytes[0] != 0x00)) {
+			throw new IllegalArgumentException("EC public key coordinates for curve " + curve.jwaCrvName + " exceed expected length of " + curve.coordinateByteLength);
+		}
+		var result = new byte[curve.coordinateByteLength];
+		if (skip > 0) {
+			System.arraycopy(bytes, skip, result, 0, result.length);
+		} else {
+			System.arraycopy(bytes, 0, result, -skip, bytes.length);
+		}
+		return result;
 	}
 
 	public static AsymmetricKey fromJwk(JsonObject jwk) throws JoseParseException {

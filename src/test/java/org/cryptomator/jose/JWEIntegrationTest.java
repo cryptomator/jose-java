@@ -4,7 +4,7 @@ import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.alg.HPKE0Alg;
 import org.cryptomator.jose.alg.HPKE1Alg;
 import org.cryptomator.jose.alg.HPKE2Alg;
-import org.cryptomator.jose.alg.HPKE7Alg;
+import org.cryptomator.jose.alg.HPKE9Alg;
 import org.cryptomator.jose.alg.Pbes2Alg;
 import org.cryptomator.jose.builder.SimpleEncryptedJWE;
 import org.cryptomator.jose.hpke.XwingProvider;
@@ -89,7 +89,7 @@ class JWEIntegrationTest {
 			var hpke0 = new HPKE0Alg((ECPublicKey) p256KeyPair.getPublic(), (ECPrivateKey) p256KeyPair.getPrivate());
 			var hpke1 = new HPKE1Alg((ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
 			var hpke2 = new HPKE2Alg((ECPublicKey) p521KeyPair.getPublic(), (ECPrivateKey) p521KeyPair.getPrivate());
-			var hpke7 = new HPKE7Alg(xwingKeyPair.getPublic(), xwingKeyPair.getPrivate());
+			var hpke9 = new HPKE9Alg(xwingKeyPair.getPublic(), xwingKeyPair.getPrivate());
 			var ecdhEs = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, (ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
 			var pbes2Hs256A128Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "secret".toCharArray(), 10);
 			var pbes2Hs512A256Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, "secret".toCharArray(), 10);
@@ -98,7 +98,7 @@ class JWEIntegrationTest {
 					Arguments.argumentSet("HPKE-0", hpke0, hpke0),
 					Arguments.argumentSet("HPKE-1", hpke1, hpke1),
 					Arguments.argumentSet("HPKE-2", hpke2, hpke2),
-					Arguments.argumentSet("HPKE-7", hpke7, hpke7),
+					Arguments.argumentSet("HPKE-9", hpke9, hpke9),
 					Arguments.argumentSet("ECDH-ES+A256KW", ecdhEs, ecdhEs),
 					Arguments.argumentSet("PBES2_HS256_A128KW", pbes2Hs256A128Kw, pbes2Hs256A128Kw),
 					Arguments.argumentSet("PBES2_HS512_A256KW", pbes2Hs512A256Kw, pbes2Hs512A256Kw)

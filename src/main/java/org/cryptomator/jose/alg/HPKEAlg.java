@@ -3,7 +3,7 @@ package org.cryptomator.jose.alg;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.hpke.AEAD;
-import org.cryptomator.jose.hpke.HKDF;
+import org.cryptomator.jose.hpke.Kdf;
 import org.cryptomator.jose.util.ArrayUtil;
 import org.cryptomator.jose.util.Destroyables;
 
@@ -11,10 +11,8 @@ import javax.crypto.AEADBadTagException;
 import javax.crypto.DecapsulateException;
 import javax.crypto.KEM;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.HKDFParameterSpec;
 import javax.security.auth.Destroyable;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -24,15 +22,15 @@ import java.util.Base64;
 /// Perform HPKE
 /// Key Encryption with [HPKE-2](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/)
 /// Test vectors from [RFC 9180](https://www.rfc-editor.org/rfc/rfc9180#name-dhkemp-521-hkdf-sha512-hkdf)
-abstract sealed class HPKEAlg extends AbstractAlg permits HPKE0Alg, HPKE1Alg, HPKE2Alg , HPKE7Alg {
+abstract sealed class HPKEAlg extends AbstractAlg permits HPKE0Alg, HPKE1Alg, HPKE2Alg, HPKE9Alg {
 
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
 	private final KEM kem;
-	private final HKDF kdf;
+	private final Kdf kdf;
 	private final AEAD aead;
 
-	public HPKEAlg(KEM kem, HKDF kdf, AEAD aead, PublicKey publicKey, PrivateKey privateKey) {
+	public HPKEAlg(KEM kem, Kdf kdf, AEAD aead, PublicKey publicKey, PrivateKey privateKey) {
 		this.kem = kem;
 		this.kdf = kdf;
 		this.aead = aead;
@@ -149,32 +147,8 @@ abstract sealed class HPKEAlg extends AbstractAlg permits HPKE0Alg, HPKE1Alg, HP
 			throw new UnsupportedOperationException("Only mode_base is currently supported");
 		}
 
-		var pskIdHash = kdf.deriveData(labeledExtract("psk_id_hash").addIKM(pskId).extractOnly());
-		var infoHash = kdf.deriveData(labeledExtract("info_hash").addIKM(info).extractOnly());
-		var keyScheduleContext = ArrayUtil.concat(new byte[]{mode}, pskIdHash, infoHash);
-		var secret = labeledExtract("secret").addIKM(psk).addSalt(sharedSecret);
-		var key = kdf.deriveKey(labeledExpand(secret, "key", keyScheduleContext, aead.nk), "AES");
-		var baseNonce = kdf.deriveData(labeledExpand(secret, "base_nonce", keyScheduleContext, aead.nn));
-		// unused var exporterSecret = kdf.extractAndExpand(labeledExpand(secret, "exp", keyScheduleContext, 32); // get Nh from KDF enum https://www.iana.org/assignments/hpke/hpke.xhtml
-
-		return new Context(key, baseNonce); // FIXME: what about ContextR?
-	}
-
-	private HKDFParameterSpec.Builder labeledExtract(String label) {
-		return HKDFParameterSpec.ofExtract()
-				.addIKM(new byte[]{'H', 'P', 'K', 'E', '-', 'v', '1'}) // TODO make constant
-				.addIKM(hpkeSuiteId())
-				.addIKM(label.getBytes(StandardCharsets.US_ASCII));
-	}
-
-	private HKDFParameterSpec.ExtractThenExpand labeledExpand(HKDFParameterSpec.Builder builder, String label, byte[] info, int length) {
-		byte[] labeledInfo = labeledInfo(hpkeSuiteId(), label, info, length);
-		return builder.thenExpand(labeledInfo, length);
-	}
-
-	private static byte[] labeledInfo(byte[] suiteId, String label, byte[] info, int length) {
-		byte[] l = { (byte) (length >> 8), (byte) length }; // TODO: or (length >>> 8)?
-		return ArrayUtil.concat(l, "HPKE-v1".getBytes(StandardCharsets.US_ASCII), suiteId, label.getBytes(StandardCharsets.US_ASCII), info);
+		var derived = kdf.combineSecrets(mode, sharedSecret, info, psk, pskId, hpkeSuiteId(), "AES", aead.nk, aead.nn);
+		return new Context(derived.key(), derived.baseNonce()); // FIXME: what about ContextR?
 	}
 
 	// visible for testing

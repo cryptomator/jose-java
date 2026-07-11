@@ -12,7 +12,7 @@ import java.security.interfaces.ECPublicKey;
 public final class HPKE1Alg extends HPKEAlg {
 
 	public HPKE1Alg(ECPublicKey publicKey, ECPrivateKey privateKey) {
-		super(kem(), HKDF.sha256(), AEAD.AES128GCM, Curve.P384.ensureSameCurve(publicKey), Curve.P384.ensureSameCurve(privateKey));
+		super(kem(), HKDF.sha384(), AEAD.AES256GCM, Curve.P384.ensureSameCurve(publicKey), Curve.P384.ensureSameCurve(privateKey));
 	}
 
 	private static KEM kem() {

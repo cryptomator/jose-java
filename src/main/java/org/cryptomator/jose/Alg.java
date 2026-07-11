@@ -2,7 +2,7 @@ package org.cryptomator.jose;
 
 import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.alg.HPKE2Alg;
-import org.cryptomator.jose.alg.HPKE7Alg;
+import org.cryptomator.jose.alg.HPKE9Alg;
 import org.cryptomator.jose.alg.Pbes2Alg;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.cryptomator.jose.util.Curve;
@@ -61,11 +61,11 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		return new HPKE2Alg(null, k);
 	}
 
-	static EncryptionAlg hpke7(PublicKey publicKey) {
+	static EncryptionAlg hpke9(PublicKey publicKey) {
 		try {
 			var kf = KeyFactory.getInstance("X-Wing", XwingProvider.INSTANCE);
 			var k = (PublicKey) kf.translateKey(publicKey);
-			return new HPKE7Alg(k, null);
+			return new HPKE9Alg(k, null);
 		} catch (NoSuchAlgorithmException e) {
 			throw new AssertionError("Custom X-Wing provider must support X-Wing key factory", e);
 		} catch (InvalidKeyException e) {
@@ -73,11 +73,11 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		}
 	}
 
-	static DecryptionAlg hpke7(PrivateKey privateKey) {
+	static DecryptionAlg hpke9(PrivateKey privateKey) {
 		try {
 			var kf = KeyFactory.getInstance("X-Wing", XwingProvider.INSTANCE);
 			var k = (PrivateKey) kf.translateKey(privateKey);
-			return new HPKE7Alg(null, k);
+			return new HPKE9Alg(null, k);
 		} catch (NoSuchAlgorithmException e) {
 			throw new AssertionError("Custom X-Wing provider must support X-Wing key factory", e);
 		} catch (InvalidKeyException e) {
