@@ -71,8 +71,11 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 	/// [draft-ietf-jose-hpke-encrypt, Section 6.1](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6.1):
 	/// `ASCII("JOSE-HPKE rcpt") || 0xFF || ASCII(content_encryption_alg) || 0xFF || recipient_extra_info` (no additional application context, so the last field is empty)
 	private static byte[] recipientStructure(JsonObject combinedHeader) {
-		var contentEncryptionAlg = combinedHeader.get("enc").getAsString();
-		return ArrayUtil.concat(RECIPIENT_STRUCTURE_LABEL, SEPARATOR, contentEncryptionAlg.getBytes(StandardCharsets.US_ASCII), SEPARATOR);
+		var encHeader = combinedHeader.get("enc"); // guaranteed present upstream (builder on encrypt, AbstractKeyAlg on decrypt); guard against direct misuse
+		if (encHeader == null || !encHeader.isJsonPrimitive() || !encHeader.getAsJsonPrimitive().isString()) {
+			throw new IllegalStateException("HPKE Key Encryption requires a string 'enc' header");
+		}
+		return ArrayUtil.concat(RECIPIENT_STRUCTURE_LABEL, SEPARATOR, encHeader.getAsString().getBytes(StandardCharsets.US_ASCII), SEPARATOR);
 	}
 
 }
