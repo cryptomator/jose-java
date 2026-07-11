@@ -104,17 +104,6 @@
 				<configuration>
 					<release>${maven.compiler.release}</release>
 				</configuration>
-				<executions>
-					<execution>
-						<id>default-testCompile</id>
-						<goals>
-							<goal>testCompile</goal>
-						</goals>
-						<configuration>
-							<useModulePath>false</useModulePath>
-						</configuration>
-					</execution>
-				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.jacoco</groupId>
@@ -147,11 +136,14 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.3.1</version>
+				<version>3.5.4</version>
 				<configuration>
+					<useModulePath>true</useModulePath>
 					<argLine>
 						@{surefire.jacoco.args}
 						-javaagent:${net.bytebuddy:byte-buddy-agent:jar}
+						<!-- Make @Hex param converter accessible: -->
+						--add-opens=org.cryptomator.jose/org.cryptomator.jose.util=ALL-UNNAMED
 					</argLine>
 				</configuration>
 			</plugin>

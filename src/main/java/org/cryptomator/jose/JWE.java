@@ -14,13 +14,13 @@ import org.cryptomator.jose.parser.Parser;
 ///ecKeyGen.initialize(new ECGenParameterSpec("secp521r1"));
 ///var keyPair = ecKeyGen.generateKeyPair();
 ///
-///// encrypt to public key:
+///// encrypt to public key (HPKE Integrated Encryption):
 ///var jwe = JWE.build("payload")
-///		.encrypt(Enc.A256GCM, Alg.hpke2Ke(keyPair.getPublic()))
+///		.encrypt(Alg.hpke2(keyPair.getPublic()))
 ///		.toCompactSerialization();
 ///
 ///// decrypt with private key:
-///var parsed = JWE.parse(jwe).decrypt(Alg.hpke2Ke(keyPair.getPrivate()));
+///var parsed = JWE.parse(jwe).decrypt(Alg.hpke2(keyPair.getPrivate()));
 /// }
 public interface JWE {
 
