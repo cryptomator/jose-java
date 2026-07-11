@@ -10,6 +10,15 @@ public sealed interface Enc permits AESGCM {
 	Enc A256GCM = new AESGCM("A256GCM", 32);
 	Enc A128GCM = new AESGCM("A128GCM", 16);
 
+	/// Looks up the content encryption algorithm registered for the given `enc` header value.
+	static Enc forName(String encValue) {
+		return switch (encValue) {
+			case "A256GCM" -> A256GCM;
+			case "A128GCM" -> A128GCM;
+			default -> throw new UnsupportedOperationException("Unsupported encryption algorithm: " + encValue);
+		};
+	}
+
 	String encValue();
 
 	byte[] generateCek();

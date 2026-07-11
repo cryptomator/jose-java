@@ -47,7 +47,7 @@ public final class HPKEKeyEncryptionAlg extends AbstractAlg {
 	}
 
 	@Override
-	public byte[] decrypt(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
+	protected byte[] decryptKey(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
 		if (!combinedHeader.has("ek")) {
 			throw new JoseDecryptException("Missing ek header");
 		}

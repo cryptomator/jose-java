@@ -66,7 +66,7 @@ public final class EcdhEsAlg extends AbstractAlg {
 	}
 
 	@Override
-	public byte[] decrypt(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
+	protected byte[] decryptKey(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
 		if (privateKey == null) {
 			throw new IllegalStateException("No private key available for decryption.");
 		}

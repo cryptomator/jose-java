@@ -29,7 +29,7 @@ public class Parser {
 	}
 
 	public static ParsedJWE parseCompact(String token) throws JoseParseException {
-		var parts = token.split("\\.");
+		var parts = token.split("\\.", -1); // -1 to keep empty parts (HPKE Integrated Encryption has empty iv and tag segments)
 		if (parts.length != 5) {
 			throw new JoseParseException("Invalid JWE compact serialization");
 		}
@@ -72,14 +72,8 @@ public class Parser {
 	}
 
 	private static ParsedJWE parseJson(JsonArray recipients, JsonObject json) throws JoseParseException {
-		if (!json.has("iv")) {
-			throw new JoseParseException("Missing 'iv' field in JSON object");
-		}
 		if (!json.has("ciphertext")) {
 			throw new JoseParseException("Missing 'ciphertext' field in JSON object");
-		}
-		if (!json.has("tag")) {
-			throw new JoseParseException("Missing 'tag' field in JSON object");
 		}
 		if (recipients.isEmpty()) {
 			throw new JoseParseException("Empty 'recipients' array in JSON object");
@@ -99,7 +93,9 @@ public class Parser {
 		var protectedHeader = json.has("protected") ? json.get("protected").getAsString() : "";
 		var unprotectedHeader = json.has("unprotected") ? json.get("unprotected").getAsJsonObject() : new JsonObject();
 		var aad = json.has("aad") ? json.get("aad").getAsString() : "";
-		return new ParsedJWE(protectedHeader, unprotectedHeader, recipients, json.get("iv").getAsString(), json.get("ciphertext").getAsString(), json.get("tag").getAsString(), aad);
+		var iv = json.has("iv") ? json.get("iv").getAsString() : ""; // absent for HPKE Integrated Encryption
+		var tag = json.has("tag") ? json.get("tag").getAsString() : ""; // absent for HPKE Integrated Encryption
+		return new ParsedJWE(protectedHeader, unprotectedHeader, recipients, iv, json.get("ciphertext").getAsString(), tag, aad);
 	}
 
 

@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.DecryptionAlg;
-import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.alg.DecryptKeyException;
 import org.cryptomator.jose.util.JsonHelper;
@@ -36,38 +35,32 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 	public DecryptedJWE decrypt(DecryptionAlg... algs) throws JoseDecryptException {
 		var base64url = Base64.getUrlDecoder();
 		var parsedProtectedHeader = parsedProtectedHeader();
-
 		var sharedHeader = JsonHelper.union(parsedProtectedHeader, unprotectedHeader);
-		var encValue = sharedHeader.get("enc").getAsString();
-		var enc = switch (encValue) {
-			case "A256GCM" -> Enc.A256GCM;
-			case "A128GCM" -> Enc.A128GCM;
-			default -> throw new UnsupportedOperationException("Unsupported encryption algorithm: " + encValue);
-		};
+
+		var combinedAad = protectedHeader + (aad.isEmpty() ? "" : "." + aad);
+		var decodedIv = base64url.decode(iv);
+		var decodedCiphertext = base64url.decode(ciphertext);
+		var decodedTag = base64url.decode(tag);
 
 		for (var recipient : recipients) {
 			var recipientJson = recipient.getAsJsonObject();
 			var encryptedKey = base64url.decode(recipientJson.get("encrypted_key").getAsString());
 			var perRecipientUnprotectedHeader = recipientJson.has("header")
-					? recipient.getAsJsonObject().get("header").getAsJsonObject()
+					? recipientJson.get("header").getAsJsonObject()
 					: new JsonObject();
 			var combinedHeader = JsonHelper.union(perRecipientUnprotectedHeader, sharedHeader);
 			var algValue = combinedHeader.get("alg").getAsString();
+			var parts = new DecryptionAlg.JweParts(encryptedKey, decodedIv, decodedCiphertext, decodedTag, combinedAad.getBytes(StandardCharsets.US_ASCII));
 			for (var alg : algs) {
 				if (!algValue.equals(alg.name())) {
 					continue;
 				}
-				byte[] cek;
+				byte[] payload;
 				try {
-					cek = alg.decrypt(combinedHeader, encryptedKey);
+					payload = alg.decrypt(combinedHeader, parts);
 				} catch (DecryptKeyException e) {
 					continue;
 				}
-				var decodedIv = base64url.decode(iv);
-				var decodedCiphertext = base64url.decode(ciphertext);
-				var decodedTag = base64url.decode(tag);
-				var combinedAad = protectedHeader + (aad.isEmpty() ? "" : "." + aad);
-				var payload = enc.decrypt(cek, decodedIv, combinedAad.getBytes(StandardCharsets.US_ASCII), decodedCiphertext, decodedTag);
 				return new DecryptedJWE(new String(payload, StandardCharsets.UTF_8), parsedProtectedHeader, JsonHelper.union(unprotectedHeader, perRecipientUnprotectedHeader), aad);
 			}
 		}

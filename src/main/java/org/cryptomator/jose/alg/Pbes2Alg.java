@@ -55,7 +55,7 @@ public final class Pbes2Alg extends AbstractAlg {
 	}
 
 	@Override
-	public byte[] decrypt(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
+	protected byte[] decryptKey(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
 		if (!name().equals(combinedHeader.get("alg").getAsString())) {
 			throw new IllegalArgumentException("alg is not " + algType.jwaAlgName);
 		}
