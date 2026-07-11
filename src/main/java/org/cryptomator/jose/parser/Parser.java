@@ -5,6 +5,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.JoseParseException;
+import org.cryptomator.jose.util.JsonHelper;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 public class Parser {
 
@@ -92,11 +96,34 @@ public class Parser {
 		}
 		var protectedHeader = json.has("protected") ? json.get("protected").getAsString() : "";
 		var unprotectedHeader = json.has("unprotected") ? json.get("unprotected").getAsJsonObject() : new JsonObject();
+		// RFC 7516 §4: the JOSE Header (per recipient) must not contain duplicate parameter names across the protected, shared unprotected and per-recipient headers
+		try {
+			var sharedHeader = JsonHelper.disjointUnion(decodeProtectedHeader(protectedHeader), unprotectedHeader);
+			for (var r : recipients) {
+				var recipient = r.getAsJsonObject();
+				var recipientHeader = recipient.has("header") ? recipient.get("header").getAsJsonObject() : new JsonObject();
+				JsonHelper.disjointUnion(recipientHeader, sharedHeader); // called for its uniqueness check only; the merged header is rebuilt per recipient at decrypt time
+			}
+		} catch (IllegalArgumentException e) {
+			throw new JoseParseException(e.getMessage(), e);
+		}
 		var aad = json.has("aad") ? json.get("aad").getAsString() : "";
 		var iv = json.has("iv") ? json.get("iv").getAsString() : ""; // absent for HPKE Integrated Encryption
 		var tag = json.has("tag") ? json.get("tag").getAsString() : ""; // absent for HPKE Integrated Encryption
 		return new ParsedJWE(protectedHeader, unprotectedHeader, recipients, iv, json.get("ciphertext").getAsString(), tag, aad);
 	}
 
+	private static JsonObject decodeProtectedHeader(String protectedHeader) throws JoseParseException {
+		if (protectedHeader.isEmpty()) {
+			return new JsonObject();
+		}
+		try {
+			var decoded = new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
+			return JsonParser.parseString(decoded).getAsJsonObject();
+		} catch (IllegalArgumentException | IllegalStateException | JsonParseException e) {
+			// IllegalArgumentException: invalid base64url; IllegalStateException: valid JSON but not an object; JsonParseException: invalid JSON
+			throw new JoseParseException("Invalid protected header", e);
+		}
+	}
 
 }

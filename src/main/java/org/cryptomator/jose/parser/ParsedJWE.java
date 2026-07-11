@@ -9,7 +9,6 @@ import org.cryptomator.jose.enc.DecryptCiphertextException;
 import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Base64;
 
 /// @param protectedHeader   JWE Protected Header
@@ -36,7 +35,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 	public DecryptedJWE decrypt(DecryptionAlg... algs) throws JoseDecryptException {
 		var base64url = Base64.getUrlDecoder();
 		var parsedProtectedHeader = parsedProtectedHeader();
-		var sharedHeader = JsonHelper.union(parsedProtectedHeader, unprotectedHeader);
+		var sharedHeader = JsonHelper.disjointUnion(parsedProtectedHeader, unprotectedHeader);
 
 		var combinedAad = protectedHeader + (aad.isEmpty() ? "" : "." + aad);
 		var decodedIv = base64url.decode(iv);
@@ -50,7 +49,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 			var perRecipientUnprotectedHeader = recipientJson.has("header")
 					? recipientJson.get("header").getAsJsonObject()
 					: new JsonObject();
-			var combinedHeader = JsonHelper.union(perRecipientUnprotectedHeader, sharedHeader);
+			var combinedHeader = JsonHelper.disjointUnion(perRecipientUnprotectedHeader, sharedHeader);
 			var algValue = combinedHeader.get("alg").getAsString();
 			var parts = new DecryptionAlg.JweParts(encryptedKey, decodedIv, decodedCiphertext, decodedTag, combinedAad.getBytes(StandardCharsets.US_ASCII));
 			for (var alg : algs) {
