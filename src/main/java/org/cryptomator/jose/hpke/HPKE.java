@@ -150,9 +150,11 @@ public final class HPKE {
 	/// An HPKE encryption context as defined in [draft-ietf-hpke-hpke, Section 5.2](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.2),
 	/// holding key material that is destroyed on [#close()].
 	public final class Context implements AutoCloseable, Destroyable {
+		private static final long MESSAGE_LIMIT = (1L << 32) - 1; // this implementation encodes the sequence number in the low 4 bytes of the nonce; refuse further messages before it would wrap and reuse a nonce (draft-ietf-hpke-hpke Section 5.2)
+
 		private final SecretKey key;
 		private final byte[] baseNonce;
-		private int sequence = 0;
+		long sequence = 0; // visible for testing
 
 		private Context(SecretKey key, byte[] baseNonce) {
 			this.key = key;
@@ -161,6 +163,9 @@ public final class HPKE {
 
 		public byte[] seal(byte[] aad, byte[] pt) {
 			// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.2
+			if (sequence > MESSAGE_LIMIT) {
+				throw new IllegalStateException("HPKE message limit reached");
+			}
 			try {
 				return aead.seal(this.key, this.computeNonce(), aad, pt);
 			} finally {
@@ -170,6 +175,9 @@ public final class HPKE {
 
 		public byte[] open(byte[] aad, byte[] ct) throws AEADBadTagException {
 			// https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.2
+			if (sequence > MESSAGE_LIMIT) {
+				throw new IllegalStateException("HPKE message limit reached");
+			}
 			try {
 				return aead.open(this.key, this.computeNonce(), aad, ct);
 			} finally {
@@ -180,7 +188,7 @@ public final class HPKE {
 		private byte[] computeNonce() {
 			var seqBytes = new byte[aead.nn];
 			var seqBuf = ByteBuffer.wrap(seqBytes);
-			seqBuf.putInt(seqBytes.length - Integer.BYTES, sequence);
+			seqBuf.putInt(seqBytes.length - Integer.BYTES, (int) sequence);
 			return ArrayUtil.xor(baseNonce, seqBytes);
 		}
 
