@@ -50,11 +50,11 @@ Key Encryption allows multiple recipients with different algorithms sharing one 
 ```java
 // encrypt with multiple recipients:
 var encrypted = JWE.build("payload")
-        .encrypt(Enc.A256GCM, Alg.pbes2("password", 1000000), Alg.hpke9Ke(receiverPublicKey2))
+        .encrypt(Enc.A256GCM, Alg.pbes2("password".toCharArray(), 1000000), Alg.hpke9Ke(receiverPublicKey2))
         .toJsonSerialization();
 
 // decrypt as recipient 1 (PBES2):
-var decrypted1 = JWE.parse(encrypted).decrypt(Alg.pbes2("password"));
+var decrypted1 = JWE.parse(encrypted).decrypt(Alg.pbes2("password".toCharArray()));
 
 // decrypt as recipient 2 (HPKE-9-KE):
 var decrypted2 = JWE.parse(encrypted).decrypt(Alg.hpke9Ke(receiverPrivateKey2));
