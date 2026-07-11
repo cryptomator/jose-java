@@ -41,6 +41,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		var encValue = sharedHeader.get("enc").getAsString();
 		var enc = switch (encValue) {
 			case "A256GCM" -> Enc.A256GCM;
+			case "A128GCM" -> Enc.A128GCM;
 			default -> throw new UnsupportedOperationException("Unsupported encryption algorithm: " + encValue);
 		};
 

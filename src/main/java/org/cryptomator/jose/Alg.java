@@ -1,9 +1,9 @@
 package org.cryptomator.jose;
 
 import org.cryptomator.jose.alg.EcdhEsAlg;
-import org.cryptomator.jose.alg.HPKE2Alg;
-import org.cryptomator.jose.alg.HPKE9Alg;
+import org.cryptomator.jose.alg.HPKEKeyEncryptionAlg;
 import org.cryptomator.jose.alg.Pbes2Alg;
+import org.cryptomator.jose.hpke.HPKE;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.cryptomator.jose.util.Curve;
 
@@ -47,25 +47,36 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, k, null);
 	}
 
-	static EncryptionAlg hpke2(PublicKey publicKey) {
+	/// Key Encryption with `HPKE-2-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
+	static EncryptionAlg hpke2Ke(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
-		return new HPKE2Alg(k, null);
+		return new HPKEKeyEncryptionAlg(HPKE.hpke2(), Curve.P521.ensureSameCurve(k), null);
 	}
 
-	static DecryptionAlg hpke2(PrivateKey privateKey) {
+	/// Key Encryption with `HPKE-2-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
+	static DecryptionAlg hpke2Ke(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
-		return new HPKE2Alg(null, k);
+		return new HPKEKeyEncryptionAlg(HPKE.hpke2(), null, Curve.P521.ensureSameCurve(k));
 	}
 
-	static EncryptionAlg hpke9(PublicKey publicKey) {
+	/// Key Encryption with `HPKE-9-KE`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
+	static EncryptionAlg hpke9Ke(PublicKey publicKey) {
+		return new HPKEKeyEncryptionAlg(HPKE.hpke9(), asXwingPublicKey(publicKey), null);
+	}
+
+	/// Key Encryption with `HPKE-9-KE`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
+	static DecryptionAlg hpke9Ke(PrivateKey privateKey) {
+		return new HPKEKeyEncryptionAlg(HPKE.hpke9(), null, asXwingPrivateKey(privateKey));
+	}
+
+	private static PublicKey asXwingPublicKey(PublicKey publicKey) {
 		try {
 			var kf = KeyFactory.getInstance("X-Wing", XwingProvider.INSTANCE);
-			var k = (PublicKey) kf.translateKey(publicKey);
-			return new HPKE9Alg(k, null);
+			return (PublicKey) kf.translateKey(publicKey);
 		} catch (NoSuchAlgorithmException e) {
 			throw new AssertionError("Custom X-Wing provider must support X-Wing key factory", e);
 		} catch (InvalidKeyException e) {
@@ -73,11 +84,10 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		}
 	}
 
-	static DecryptionAlg hpke9(PrivateKey privateKey) {
+	private static PrivateKey asXwingPrivateKey(PrivateKey privateKey) {
 		try {
 			var kf = KeyFactory.getInstance("X-Wing", XwingProvider.INSTANCE);
-			var k = (PrivateKey) kf.translateKey(privateKey);
-			return new HPKE9Alg(null, k);
+			return (PrivateKey) kf.translateKey(privateKey);
 		} catch (NoSuchAlgorithmException e) {
 			throw new AssertionError("Custom X-Wing provider must support X-Wing key factory", e);
 		} catch (InvalidKeyException e) {

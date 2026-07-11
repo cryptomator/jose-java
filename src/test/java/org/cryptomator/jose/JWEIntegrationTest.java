@@ -1,12 +1,10 @@
 package org.cryptomator.jose;
 
 import org.cryptomator.jose.alg.EcdhEsAlg;
-import org.cryptomator.jose.alg.HPKE0Alg;
-import org.cryptomator.jose.alg.HPKE1Alg;
-import org.cryptomator.jose.alg.HPKE2Alg;
-import org.cryptomator.jose.alg.HPKE9Alg;
+import org.cryptomator.jose.alg.HPKEKeyEncryptionAlg;
 import org.cryptomator.jose.alg.Pbes2Alg;
 import org.cryptomator.jose.builder.SimpleEncryptedJWE;
+import org.cryptomator.jose.hpke.HPKE;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.cryptomator.jose.util.Curve;
 import org.junit.jupiter.api.Assertions;
@@ -86,19 +84,19 @@ class JWEIntegrationTest {
 			var xwingKeyGen = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE);
 			var xwingKeyPair = xwingKeyGen.generateKeyPair();
 
-			var hpke0 = new HPKE0Alg((ECPublicKey) p256KeyPair.getPublic(), (ECPrivateKey) p256KeyPair.getPrivate());
-			var hpke1 = new HPKE1Alg((ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
-			var hpke2 = new HPKE2Alg((ECPublicKey) p521KeyPair.getPublic(), (ECPrivateKey) p521KeyPair.getPrivate());
-			var hpke9 = new HPKE9Alg(xwingKeyPair.getPublic(), xwingKeyPair.getPrivate());
+			var hpke0Ke = new HPKEKeyEncryptionAlg(HPKE.hpke0(), p256KeyPair.getPublic(), p256KeyPair.getPrivate());
+			var hpke1Ke = new HPKEKeyEncryptionAlg(HPKE.hpke1(), p384KeyPair.getPublic(), p384KeyPair.getPrivate());
+			var hpke2Ke = new HPKEKeyEncryptionAlg(HPKE.hpke2(), p521KeyPair.getPublic(), p521KeyPair.getPrivate());
+			var hpke9Ke = new HPKEKeyEncryptionAlg(HPKE.hpke9(), xwingKeyPair.getPublic(), xwingKeyPair.getPrivate());
 			var ecdhEs = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, (ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
 			var pbes2Hs256A128Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "secret".toCharArray(), 10);
 			var pbes2Hs512A256Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, "secret".toCharArray(), 10);
 
 			return Stream.of(
-					Arguments.argumentSet("HPKE-0", hpke0, hpke0),
-					Arguments.argumentSet("HPKE-1", hpke1, hpke1),
-					Arguments.argumentSet("HPKE-2", hpke2, hpke2),
-					Arguments.argumentSet("HPKE-9", hpke9, hpke9),
+					Arguments.argumentSet("HPKE-0-KE", hpke0Ke, hpke0Ke),
+					Arguments.argumentSet("HPKE-1-KE", hpke1Ke, hpke1Ke),
+					Arguments.argumentSet("HPKE-2-KE", hpke2Ke, hpke2Ke),
+					Arguments.argumentSet("HPKE-9-KE", hpke9Ke, hpke9Ke),
 					Arguments.argumentSet("ECDH-ES+A256KW", ecdhEs, ecdhEs),
 					Arguments.argumentSet("PBES2_HS256_A128KW", pbes2Hs256A128Kw, pbes2Hs256A128Kw),
 					Arguments.argumentSet("PBES2_HS512_A256KW", pbes2Hs512A256Kw, pbes2Hs512A256Kw)

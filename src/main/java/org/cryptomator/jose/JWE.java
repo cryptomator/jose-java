@@ -16,11 +16,11 @@ import org.cryptomator.jose.parser.Parser;
 ///
 ///// encrypt to public key:
 ///var jwe = JWE.build("payload")
-///		.encrypt(Enc.A256GCM, Alg.hpke2(keyPair.getPublic()))
+///		.encrypt(Enc.A256GCM, Alg.hpke2Ke(keyPair.getPublic()))
 ///		.toCompactSerialization();
 ///
 ///// decrypt with private key:
-///var parsed = JWE.parse(jwe).decrypt(Alg.hpke2(keyPair.getPrivate()));
+///var parsed = JWE.parse(jwe).decrypt(Alg.hpke2Ke(keyPair.getPrivate()));
 /// }
 public interface JWE {
 
