@@ -48,12 +48,13 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 
 	@Override
 	protected byte[] decryptKey(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
-		if (!combinedHeader.has("ek")) {
-			throw new JoseDecryptException("Missing ek header");
+		var ekHeader = combinedHeader.get("ek");
+		if (ekHeader == null || !ekHeader.isJsonPrimitive() || !ekHeader.getAsJsonPrimitive().isString()) {
+			throw new JoseDecryptException("Missing or non-string ek header");
 		}
 		byte[] enc;
 		try {
-			enc = Base64.getUrlDecoder().decode(combinedHeader.get("ek").getAsString());
+			enc = Base64.getUrlDecoder().decode(ekHeader.getAsString());
 		} catch (IllegalArgumentException e) {
 			throw new JoseDecryptException("Invalid base64 encoding", e);
 		}

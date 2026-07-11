@@ -1,6 +1,7 @@
 package org.cryptomator.jose.parser;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
@@ -102,7 +103,11 @@ public class Parser {
 			for (var r : recipients) {
 				var recipient = r.getAsJsonObject();
 				var recipientHeader = recipient.has("header") ? recipient.get("header").getAsJsonObject() : new JsonObject();
-				JsonHelper.disjointUnion(recipientHeader, sharedHeader); // called for its uniqueness check only; the merged header is rebuilt per recipient at decrypt time
+				var joseHeader = JsonHelper.disjointUnion(recipientHeader, sharedHeader);
+				// RFC 7516 §4.1.1: the alg header parameter must be present and (like all header parameters) a string
+				if (!joseHeader.has("alg") || !joseHeader.get("alg").isJsonPrimitive() || !joseHeader.getAsJsonPrimitive("alg").isString()) {
+					throw new JoseParseException("Missing or non-string alg header parameter");
+				}
 			}
 		} catch (IllegalArgumentException e) {
 			throw new JoseParseException(e.getMessage(), e);

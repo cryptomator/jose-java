@@ -62,7 +62,7 @@ public final class AESGCM implements Enc {
 		} catch (InvalidKeyException e) {
 			throw new IllegalArgumentException("invalid CEK", e);
 		} catch (IllegalBlockSizeException | BadPaddingException e) {
-			throw new AssertionError(e); // neither can happen
+			throw new AssertionError(e); // IllegalBlockSize: not a block cipher // BadPadding: can only occur during decryption
 		}
 	}
 
@@ -78,11 +78,11 @@ public final class AESGCM implements Enc {
 		} catch (NoSuchPaddingException | NoSuchAlgorithmException e) {
 			throw new AssertionError("AES/GCM/NoPadding not supported on this JVM", e);
 		} catch (InvalidAlgorithmParameterException e) {
-			throw new IllegalArgumentException("invalid IV", e);
+			throw new DecryptCiphertextException("Invalid IV", e); // e.g. a missing or wrong-length IV on a Key Encryption token
 		} catch (InvalidKeyException e) {
 			throw new IllegalArgumentException("invalid CEK", e);
 		} catch (IllegalBlockSizeException e) {
-			throw new AssertionError(e); // neither can happen
+			throw new AssertionError(e); // IllegalBlockSize: not a block cipher
 		} catch (BadPaddingException e) {
 			throw new DecryptCiphertextException("Decryption failed", e);
 		}

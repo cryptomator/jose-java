@@ -55,4 +55,27 @@ class ParserTest {
 
 		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(json.toString()));
 	}
+
+	@Test
+	@DisplayName("a non-string alg is rejected")
+	void testNonStringAlg() {
+		var json = validJwe();
+		json.addProperty("protected", base64url("{\"alg\":{},\"enc\":\"A256GCM\"}")); // alg is a JSON object, not a string
+
+		var thrown = Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(json.toString()));
+		Assertions.assertTrue(thrown.getMessage().contains("alg"));
+	}
+
+	@Test
+	@DisplayName("a missing alg is rejected")
+	void testMissingAlg() {
+		var json = validJwe();
+		json.addProperty("protected", base64url("{\"enc\":\"A256GCM\"}")); // no alg anywhere
+
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(json.toString()));
+	}
+
+	private static String base64url(String json) {
+		return Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.UTF_8));
+	}
 }

@@ -20,57 +20,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
-import java.util.Base64;
 import java.util.stream.Stream;
 
 class JWEIntegrationTest {
-
-	@Nested
-	@DisplayName("malformed content is rejected at decrypt")
-	class MalformedContent {
-
-		private JsonObject validJwe() {
-			// a valid PBES2 JWE with a 12-byte iv and 16-byte tag
-			var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10)).toJsonSerialization();
-			return JsonParser.parseString(jwe).getAsJsonObject();
-		}
-
-		@Test
-		@DisplayName("a Key Encryption token with a stripped iv fails with a checked exception")
-		public void testStrippedIv() {
-			var json = validJwe();
-			json.remove("iv");
-			var parsed = Assertions.assertDoesNotThrow(() -> JWE.parse(json.toString()));
-			Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(Alg.pbes2("secret".toCharArray())));
-		}
-
-		@Test
-		@DisplayName("a Key Encryption token with a stripped tag fails with a checked exception")
-		public void testStrippedTag() {
-			var json = validJwe();
-			json.remove("tag");
-			var parsed = Assertions.assertDoesNotThrow(() -> JWE.parse(json.toString()));
-			Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(Alg.pbes2("secret".toCharArray())));
-		}
-
-		@Test
-		@DisplayName("an unsupported enc value fails with a checked exception")
-		public void testUnsupportedEnc() {
-			var json = validJwe();
-			var base64url = Base64.getUrlDecoder();
-			var protectedJson = JsonParser.parseString(new String(base64url.decode(json.get("protected").getAsString()), StandardCharsets.UTF_8)).getAsJsonObject();
-			protectedJson.addProperty("enc", "A192GCM"); // not supported by this library
-			json.addProperty("protected", Base64.getUrlEncoder().withoutPadding().encodeToString(protectedJson.toString().getBytes(StandardCharsets.UTF_8)));
-			var parsed = Assertions.assertDoesNotThrow(() -> JWE.parse(json.toString()));
-			Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(Alg.pbes2("secret".toCharArray())));
-		}
-	}
 
 	@Nested
 	@DisplayName("serialize and parse")

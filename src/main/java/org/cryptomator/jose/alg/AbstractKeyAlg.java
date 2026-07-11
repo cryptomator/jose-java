@@ -15,10 +15,11 @@ public abstract sealed class AbstractKeyAlg implements KeyEncryptionAlg, KeyDecr
 
 	@Override
 	public final byte[] decrypt(JsonObject combinedHeader, JweParts parts) throws JoseDecryptException {
-		if (!combinedHeader.has("enc")) {
-			throw new JoseDecryptException("Missing enc header");
+		var encHeader = combinedHeader.get("enc");
+		if (encHeader == null || !encHeader.isJsonPrimitive() || !encHeader.getAsJsonPrimitive().isString()) {
+			throw new JoseDecryptException("Missing or non-string enc header");
 		}
-		var enc = Enc.forName(combinedHeader.get("enc").getAsString());
+		var enc = Enc.forName(encHeader.getAsString());
 		var cek = decryptKey(combinedHeader, parts.encryptedKey());
 		try {
 			return enc.decrypt(cek, parts.iv(), parts.aad(), parts.ciphertext(), parts.tag());
