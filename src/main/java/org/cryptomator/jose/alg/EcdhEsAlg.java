@@ -188,10 +188,11 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		}
 	}
 
-	private byte[] deriveKey(byte[] sharedSecret, JsonObject combinedHeader) {
+	// visible for testing (org.cryptomator.jose.alg is not an exported package, so this is not public API): lets EcdhEsAlgTest verify apu/apv are wired into the ConcatKDF OtherInfo
+	public byte[] deriveKey(byte[] sharedSecret, JsonObject combinedHeader) {
 		var algorithmId = type.jwaAlgName.getBytes(StandardCharsets.US_ASCII); // TODO: if alg is "ECDH-ES" (without key wrap), use "enc" value from header
 		var partyUInfo = combinedHeader.has("apu") ? Base64.getUrlDecoder().decode(combinedHeader.get("apu").getAsString()) : new byte[0];
-		var partyVInfo = combinedHeader.has("apv") ? Base64.getUrlDecoder().decode(combinedHeader.get("apu").getAsString()) : new byte[0];
+		var partyVInfo = combinedHeader.has("apv") ? Base64.getUrlDecoder().decode(combinedHeader.get("apv").getAsString()) : new byte[0];
 		var suppPubInfo = type.keyLength;
 		var suppPrivInfo = new byte[0];
 		ByteBuffer otherInfo = ByteBuffer.allocate(Integer.BYTES + algorithmId.length
