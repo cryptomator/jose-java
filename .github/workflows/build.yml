@@ -93,7 +93,7 @@ jobs:
           PROJECT_VERSION=$(./mvnw help:evaluate "-Dexpression=project.version" -q -DforceStdout)
           test "${PROJECT_VERSION: -9}" = "-SNAPSHOT"
       - name: Deploy to Maven Central
-        run: ./mvnw deploy -B -DskipTests -Psign,deploy-central --no-transfer-progress
+        run: ./mvnw deploy -B -DskipTests -DskipITs -Psign,deploy-central --no-transfer-progress
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
@@ -126,7 +126,7 @@ jobs:
           PROJECT_VERSION=$(./mvnw help:evaluate "-Dexpression=project.version" -q -DforceStdout)
           test "${PROJECT_VERSION: -9}" = "-SNAPSHOT"
       - name: Deploy to GitHub Packages
-        run: ./mvnw deploy -B -DskipTests -Psign,deploy-github --no-transfer-progress
+        run: ./mvnw deploy -B -DskipTests -DskipITs -Psign,deploy-github --no-transfer-progress
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.RELEASES_GPG_PASSPHRASE }}
