@@ -136,6 +136,21 @@ class JoseToNimbusIT {
 		}
 	}
 
+	@Test
+	@DisplayName("crit: nimbus accepts the critical param only when deferred to the application")
+	void critDeferral() throws JOSEException, ParseException, JoseException {
+		var payload = InteropFixtures.PAYLOADS.get("ascii");
+		var protectedHeader = InteropFixtures.json("{\"crit\":[\"org.example.v\"],\"org.example.v\":1}");
+		var jwe = JWE.build(payload).withProtectedHeader(protectedHeader).encrypt(Enc.A256GCM, Alg.a256kw(InteropFixtures.joseKek())).toCompactSerialization();
+
+		var accepting = JWEObject.parse(jwe);
+		accepting.decrypt(new AESDecrypter(InteropFixtures.joseKek(), java.util.Set.of("org.example.v")));
+		Assertions.assertEquals(payload, accepting.getPayload().toString());
+
+		var rejecting = JWEObject.parse(jwe);
+		Assertions.assertThrows(JOSEException.class, () -> rejecting.decrypt(new AESDecrypter(InteropFixtures.joseKek())));
+	}
+
 	@ParameterizedTest
 	@MethodSource
 	@DisplayName("payload × protected header × serialization")

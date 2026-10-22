@@ -19,10 +19,12 @@ import com.nimbusds.jose.jwk.JWKSet;
 import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.DecryptionAlg;
 import org.cryptomator.jose.JWE;
+import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.JoseException;
 import org.cryptomator.jose.util.Curve;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -147,6 +149,19 @@ class NimbusToJoseIT {
 			}
 		}
 		return result.build();
+	}
+
+	@Test
+	@DisplayName("crit: jose-java accepts the critical param only when declared as understood")
+	void critDeferral() throws JOSEException, JoseException {
+		var payload = InteropFixtures.PAYLOADS.get("ascii");
+		var header = new JWEHeader.Builder(JWEAlgorithm.A256KW, EncryptionMethod.A256GCM).criticalParams(java.util.Set.of("org.example.v")).customParam("org.example.v", 1L).build();
+		var jwe = new JWEObject(header, new Payload(payload));
+		jwe.encrypt(new AESEncrypter(InteropFixtures.joseKek()));
+		var compact = jwe.serialize();
+
+		Assertions.assertEquals(payload, JWE.parse(compact, "org.example.v").decrypt(Alg.a256kw(InteropFixtures.joseKek())).payload());
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(compact));
 	}
 
 	@ParameterizedTest

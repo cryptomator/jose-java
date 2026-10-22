@@ -12,8 +12,12 @@ import org.cryptomator.jose.util.JsonHelper;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 
-/// @param protectedHeader   JWE Protected Header
+/// A parsed, not yet decrypted JWE in any of the three serializations, normalized to the General JSON Serialization's structure.
+/// Instances produced by [Parser] have passed the JOSE Header checks (incl. `crit`); instances constructed directly have not.
+///
+/// @param protectedHeader   BASE64URL(UTF8(JWE Protected Header))
 /// @param unprotectedHeader JWE Shared Unprotected Header
 /// @param recipients        JWE Per-Recipient Unprotected Header and encrypted keys
 /// @param iv                BASE64URL(JWE Initialization Vector)
@@ -40,10 +44,26 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 				.toList();
 	}
 
-	/// Decrypts the JWE, attempting the provided algorithms in order.
+	/// Decrypts the JWE, attempting each recipient against each of the provided algorithms (matched by `alg`) in order.
 	///
-	/// @throws JoseDecryptException if neither of the provided decryption methods is valid
+	/// @param algs The candidate decryption algorithms
+	/// @return The decrypted JWE
+	/// @throws JoseDecryptException if no recipient could be decrypted with the provided algorithms
 	public DecryptedJWE decrypt(DecryptionAlg... algs) throws JoseDecryptException {
+		return decrypt(Optional.empty(), algs);
+	}
+
+	/// Decrypts the JWE for the recipient identified by the given `kid`.
+	///
+	/// @param kid The `kid` header parameter value identifying the recipient
+	/// @param alg The decryption algorithm for that recipient
+	/// @return The decrypted JWE
+	/// @throws JoseDecryptException if no or several recipients carry the `kid`, or if that recipient could not be decrypted
+	public DecryptedJWE decrypt(String kid, DecryptionAlg alg) throws JoseDecryptException {
+		return decrypt(Optional.of(kid), alg);
+	}
+
+	private DecryptedJWE decrypt(Optional<String> kid, DecryptionAlg... algs) throws JoseDecryptException {
 		var base64url = Base64.getUrlDecoder();
 		var parsedProtectedHeader = parsedProtectedHeader();
 		var sharedHeader = JsonHelper.disjointUnion(parsedProtectedHeader, unprotectedHeader);
@@ -59,15 +79,21 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		var decodedCiphertext = base64url.decode(ciphertext);
 		var decodedTag = base64url.decode(tag);
 
-		var failure = new JoseDecryptException("No matching recipient found for decryption.");
-		for (var recipient : recipients) {
+		var candidates = kid.isPresent() ? recipientsWithKid(kid.get(), sharedHeader) : recipients.asList();
+		var failure = new JoseDecryptException(kid.isPresent() ? "Recipient '" + kid.get() + "' could not be decrypted." : "No matching recipient found for decryption.");
+		for (var recipient : candidates) {
 			var recipientJson = recipient.getAsJsonObject();
 			var encryptedKey = base64url.decode(recipientJson.get("encrypted_key").getAsString());
 			var perRecipientUnprotectedHeader = recipientJson.has("header")
 					? recipientJson.get("header").getAsJsonObject()
 					: new JsonObject();
 			var combinedHeader = JsonHelper.disjointUnion(perRecipientUnprotectedHeader, sharedHeader);
-			var algValue = combinedHeader.get("alg").getAsString();
+			var algHeader = combinedHeader.get("alg");
+			if (algHeader == null || !algHeader.isJsonPrimitive() || !algHeader.getAsJsonPrimitive().isString()) {
+				failure.addSuppressed(new JoseDecryptException("Missing or non-string alg header"));
+				continue;
+			}
+			var algValue = algHeader.getAsString();
 			var parts = new DecryptionAlg.JweParts(encryptedKey, decodedIv, decodedCiphertext, decodedTag, combinedAadBytes);
 			for (var alg : algs) {
 				if (!algValue.equals(alg.name())) {
@@ -84,5 +110,20 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 			}
 		}
 		throw failure;
+	}
+
+	// the recipients whose JOSE Header carries the given kid; exactly one is expected
+	private List<com.google.gson.JsonElement> recipientsWithKid(String kid, JsonObject sharedHeader) throws JoseDecryptException {
+		var matches = recipients.asList().stream().filter(r -> {
+			var recipientHeader = r.getAsJsonObject().has("header") ? r.getAsJsonObject().getAsJsonObject("header") : new JsonObject();
+			var kidHeader = recipientHeader.has("kid") ? recipientHeader.get("kid") : sharedHeader.get("kid");
+			return kidHeader != null && kidHeader.isJsonPrimitive() && kidHeader.getAsJsonPrimitive().isString() && kid.equals(kidHeader.getAsString());
+		}).toList();
+		if (matches.isEmpty()) {
+			throw new JoseDecryptException("No recipient with kid '" + kid + "'");
+		} else if (matches.size() > 1) {
+			throw new JoseDecryptException("Ambiguous kid '" + kid + "': " + matches.size() + " recipients");
+		}
+		return matches;
 	}
 }

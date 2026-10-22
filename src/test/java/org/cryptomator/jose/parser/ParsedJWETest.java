@@ -2,17 +2,23 @@ package org.cryptomator.jose.parser;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JWE;
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.JoseException;
 import org.cryptomator.jose.JoseParseException;
+import org.cryptomator.jose.Recipient;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -73,6 +79,60 @@ class ParsedJWETest {
 		var keyPair = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE).generateKeyPair();
 		var malformed = malformed("{\"alg\":\"HPKE-9-KE\",\"enc\":\"A256GCM\",\"ek\":{}}");
 		Assertions.assertThrows(JoseDecryptException.class, () -> malformed.decrypt(Alg.hpke9Ke(keyPair.getPrivate())));
+	}
+
+	@Nested
+	@DisplayName("decrypt by kid")
+	class ByKid {
+
+		private static final SecretKey KEK_A = new SecretKeySpec(new byte[32], "AES");
+		private static final SecretKey KEK_B = new SecretKeySpec(new byte[]{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, "AES");
+
+		private ParsedJWE twoRecipients;
+
+		@BeforeEach
+		void setup() throws JoseParseException {
+			var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Recipient.withAlg(Alg.a256kw(KEK_A)).withClaim("kid", "a"), Recipient.withAlg(Alg.a256kw(KEK_B)).withClaim("kid", "b")).toJsonSerialization();
+			twoRecipients = JWE.parse(jwe);
+		}
+
+		@Test
+		@DisplayName("selects the recipient with the matching kid")
+		void testMatch() throws JoseDecryptException {
+			Assertions.assertEquals("b", twoRecipients.decrypt("b", Alg.a256kw(KEK_B)).unprotectedHeader().get("kid").getAsString());
+			Assertions.assertEquals("a", twoRecipients.decrypt("a", Alg.a256kw(KEK_A)).unprotectedHeader().get("kid").getAsString());
+		}
+
+		@Test
+		@DisplayName("does not fall back to other recipients")
+		void testNoFallback() {
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> twoRecipients.decrypt("a", Alg.a256kw(KEK_B)));
+			Assertions.assertEquals(1, thrown.getSuppressed().length); // only recipient a was tried, with the wrong key
+		}
+
+		@Test
+		@DisplayName("an unknown kid fails without trying any recipient")
+		void testUnknownKid() {
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> twoRecipients.decrypt("c", Alg.a256kw(KEK_A)));
+			Assertions.assertTrue(thrown.getMessage().contains("No recipient with kid"));
+		}
+
+		@Test
+		@DisplayName("a kid shared by several recipients is ambiguous")
+		void testAmbiguousKid() throws JoseParseException {
+			var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Recipient.withAlg(Alg.a256kw(KEK_A)).withClaim("kid", "x"), Recipient.withAlg(Alg.a256kw(KEK_B)).withClaim("kid", "x")).toJsonSerialization();
+			var parsed = JWE.parse(jwe);
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt("x", Alg.a256kw(KEK_A)));
+			Assertions.assertTrue(thrown.getMessage().contains("Ambiguous"));
+		}
+
+		@Test
+		@DisplayName("a kid in the protected header selects the single recipient of a compact JWE")
+		void testKidInProtectedHeader() throws JoseException {
+			var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Recipient.withAlg(Alg.a256kw(KEK_A)).withClaim("kid", "p")).toCompactSerialization();
+			Assertions.assertEquals("payload", JWE.parse(jwe).decrypt("p", Alg.a256kw(KEK_A)).payload());
+		}
+
 	}
 
 	private ParsedJWE malformed(String protectedHeaderJson) {

@@ -5,6 +5,8 @@ import org.cryptomator.jose.builder.SimpleBuilder;
 import org.cryptomator.jose.parser.ParsedJWE;
 import org.cryptomator.jose.parser.Parser;
 
+import java.util.Set;
+
 ///
 /// Usage example with HPKE-2:
 ///
@@ -24,8 +26,15 @@ import org.cryptomator.jose.parser.Parser;
 /// }
 public interface JWE {
 
-	static ParsedJWE parse(String token) throws JoseParseException {
-		return Parser.parse(token);
+	/// Parses a JWE in compact, flattened or general JSON serialization.
+	///
+	/// @param token The serialized JWE
+	/// @param understoodCrit Extension header parameter names the caller understands and therefore accepts in `crit`
+	///                       ([RFC 7516, Section 4.1.13](https://www.rfc-editor.org/rfc/rfc7516#section-4.1.13)); extensions implemented by this library (e.g. `ek`) need not be listed
+	/// @return The parsed, not yet decrypted JWE
+	/// @throws JoseParseException if the token is malformed, violates the JOSE Header rules, or lists a critical extension that is not understood
+	static ParsedJWE parse(String token, String... understoodCrit) throws JoseParseException {
+		return Parser.parse(token, Set.of(understoodCrit));
 	}
 
 	static SimpleBuilder build(String payload) {
