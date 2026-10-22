@@ -11,6 +11,7 @@ import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 
 /// @param protectedHeader   JWE Protected Header
 /// @param unprotectedHeader JWE Shared Unprotected Header
@@ -28,6 +29,15 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		}
 		String decoded = new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
 		return JsonParser.parseString(decoded).getAsJsonObject();
+	}
+
+	/// The per-recipient unprotected headers of all recipients, in order, before any decryption attempt (e.g. to pick a key by `kid`).
+	///
+	/// @return One (possibly empty) header object per recipient
+	public List<JsonObject> recipientHeaders() {
+		return recipients.asList().stream()
+				.map(r -> r.getAsJsonObject().has("header") ? r.getAsJsonObject().getAsJsonObject("header").deepCopy() : new JsonObject())
+				.toList();
 	}
 
 	/// Decrypts the JWE, attempting the provided algorithms in order.

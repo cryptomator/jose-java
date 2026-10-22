@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.IntegratedEncryptionAlg;
-import org.cryptomator.jose.KeyEncryptionAlg;
+import org.cryptomator.jose.Recipient;
 import org.cryptomator.jose.util.Ascii;
 import org.cryptomator.jose.util.JsonHelper;
 
@@ -21,26 +21,32 @@ import java.util.Base64;
 /// @param aad BASE64URL(JWE AAD)
 record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, JsonArray recipients, String iv, String ciphertext, String tag, String aad) implements SimpleEncryptedJWE {
 
-	// https://www.rfc-editor.org/rfc/rfc7516#section-5.1
-	static EncryptedJWEImpl build(SimpleBuilder builder, Enc enc, KeyEncryptionAlg alg) {
+	private static final String PROTECTED = "protected header";
+	private static final String SHARED_UNPROTECTED = "shared unprotected header";
+	private static final String PER_RECIPIENT = "per-recipient header";
+	private static final String ALG_GENERATED = "alg-generated recipient header";
+
+	// https://www.rfc-editor.org/rfc/rfc7516#section-5.1, single recipient without AAD or shared unprotected header: all header params go into the protected header
+	static EncryptedJWEImpl build(SimpleBuilder builder, Enc enc, Recipient recipient) {
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// generate cek:
 		var cek = enc.generateCek();
 		try {
-			// prepare protected header:
-			var protectedHeader = builder.protectedHeader().deepCopy();
-			protectedHeader.addProperty("enc", enc.encValue());
+			// the alg sees the complete JOSE Header (minus its own output), so e.g. apu/apv from the recipient header reach the KDF:
+			var protectedHeader = protectedHeaderWithEnc(builder.protectedHeader(), enc);
+			var visibleHeader = disjointUnion(recipient.header(), PER_RECIPIENT, protectedHeader, PROTECTED);
+			var algResult = recipient.alg().encrypt(visibleHeader, cek);
 
 			// prepare recipient object:
-			var algResult = alg.encrypt(protectedHeader, cek);
 			var recipientsArray = new JsonArray(1);
 			var recipientObj = new JsonObject();
 			recipientObj.addProperty("encrypted_key", base64url.encodeToString(algResult.encryptedKey()));
 			recipientsArray.add(recipientObj);
 
-			// finalize protected header:
-			protectedHeader = JsonHelper.union(algResult.recipientSpecificHeader(), protectedHeader);
+			// finalize protected header by folding the recipient's params into it:
+			var recipientHeader = disjointUnion(algResult.recipientSpecificHeader(), ALG_GENERATED, recipient.header(), PER_RECIPIENT);
+			protectedHeader = disjointUnion(recipientHeader, PER_RECIPIENT, protectedHeader, PROTECTED);
 			var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
 
 			// encrypt payload:
@@ -50,24 +56,30 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		}
 	}
 
-	static EncryptedJWEImpl build(ComplexBuilder builder, Enc enc, KeyEncryptionAlg... algs) {
+	// https://www.rfc-editor.org/rfc/rfc7516#section-7.2.1: per-recipient params stay in each recipient's own header
+	static EncryptedJWEImpl build(ComplexBuilder builder, Enc enc, Recipient... recipients) {
+		if (recipients.length == 0) {
+			throw new IllegalArgumentException("At least one recipient is required");
+		}
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// generate and encrypt cek:
 		var cek = enc.generateCek();
 		try {
-			// prepare protected header:
-			var protectedHeader = builder.protectedHeader().deepCopy();
-			protectedHeader.addProperty("enc", enc.encValue());
+			// prepare shared header (protected + shared unprotected), which every recipient's header must be disjoint with:
+			var protectedHeader = protectedHeaderWithEnc(builder.protectedHeader(), enc);
+			var sharedHeader = disjointUnion(protectedHeader, PROTECTED, builder.unprotectedHeader(), SHARED_UNPROTECTED);
 
 			// prepare recipient objects:
 			JsonArray recipientsArray = new JsonArray();
-			for (KeyEncryptionAlg alg : algs) {
-				var combinedHeader = JsonHelper.union(protectedHeader, builder.unprotectedHeader()); // FIXME: add alg.recipientSpecificHeader()
-				var algResult = alg.encrypt(combinedHeader, cek);
+			for (Recipient recipient : recipients) {
+				var visibleHeader = disjointUnion(recipient.header(), PER_RECIPIENT, sharedHeader, "protected or shared unprotected header");
+				var algResult = recipient.alg().encrypt(visibleHeader, cek);
+				var recipientHeader = disjointUnion(algResult.recipientSpecificHeader(), ALG_GENERATED, recipient.header(), PER_RECIPIENT);
+				disjointUnion(recipientHeader, ALG_GENERATED, sharedHeader, "protected or shared unprotected header"); // check only, e.g. a caller-supplied protected 'alg'
 				var recipientObj = new JsonObject();
 				recipientObj.addProperty("encrypted_key", base64url.encodeToString(algResult.encryptedKey()));
-				recipientObj.add("header", algResult.recipientSpecificHeader());
+				recipientObj.add("header", recipientHeader);
 				recipientsArray.add(recipientObj);
 			}
 
@@ -87,12 +99,13 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// prepare protected header:
-		var protectedHeader = builder.protectedHeader().deepCopy();
-		var userHeader = JsonHelper.union(protectedHeader, builder.unprotectedHeader());
+		var userHeader = disjointUnion(builder.protectedHeader(), PROTECTED, builder.unprotectedHeader(), SHARED_UNPROTECTED);
 		if (userHeader.has("enc") || userHeader.has("ek")) {
 			throw new IllegalArgumentException("enc and ek headers must not be present for Integrated Encryption");
 		}
-		protectedHeader.addProperty("alg", alg.name());
+		var algHeader = new JsonObject();
+		algHeader.addProperty("alg", alg.name());
+		var protectedHeader = disjointUnion(algHeader, ALG_GENERATED, builder.protectedHeader(), PROTECTED);
 		var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
 
 		// prepare aad (input to the HPKE seal, so it must be final before encrypting):
@@ -107,6 +120,26 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		var recipientsArray = new JsonArray(1);
 		recipientsArray.add(recipientObj);
 		return new EncryptedJWEImpl(encodedProtectedHeader, builder.unprotectedHeader(), recipientsArray, "", base64url.encodeToString(sealed.ciphertext()), "", builder.aad());
+	}
+
+	// the caller's protected header plus the enc param, which is derived from the Enc argument and therefore must not be supplied by the caller
+	private static JsonObject protectedHeaderWithEnc(JsonObject userProtectedHeader, Enc enc) {
+		if (userProtectedHeader.has("enc")) {
+			throw new IllegalArgumentException("Header parameter 'enc' is derived from the content encryption algorithm and must not be set in the " + PROTECTED);
+		}
+		var protectedHeader = userProtectedHeader.deepCopy();
+		protectedHeader.addProperty("enc", enc.encValue());
+		return protectedHeader;
+	}
+
+	// RFC 7516 Section 4 requires the header parameter names across the protected, shared unprotected and per-recipient headers to be disjoint;
+	// unlike the parser-side JsonHelper.disjointUnion, this names the colliding locations in the error message
+	private static JsonObject disjointUnion(JsonObject a, String nameA, JsonObject b, String nameB) {
+		var duplicate = a.keySet().stream().filter(b::has).findAny();
+		if (duplicate.isPresent()) {
+			throw new IllegalArgumentException("Header parameter '" + duplicate.get() + "' must not be present in both the " + nameA + " and the " + nameB);
+		}
+		return JsonHelper.union(a, b);
 	}
 
 	static EncryptedJWEImpl encrypt(Enc enc, byte[] cek, String protectedHeader, JsonArray recipients, JsonObject unprotectedHeader, String payload, String aad) {

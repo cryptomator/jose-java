@@ -63,6 +63,17 @@ public class APITest {
 		}
 
 		@Test
+		@DisplayName("Recipient overloads preserve the type-state of the alg overloads")
+		public void testRecipientOverloads() {
+			var recipient = Recipient.withAlg(Alg.pbes2("secret".toCharArray(), 10)).withClaim("kid", "kid");
+
+			Assertions.assertInstanceOf(SimpleEncryptedJWE.class, JWE.build("payload").encrypt(Enc.A256GCM, recipient));
+			Assertions.assertInstanceOf(SingleRecipientEncryptedJWE.class, JWE.build("payload").withAad("aad").encrypt(Enc.A256GCM, recipient));
+			EncryptedJWE multi = JWE.build("payload").encrypt(Enc.A256GCM, recipient, recipient); // static type: General JSON only (the runtime type implements everything)
+			Assertions.assertDoesNotThrow(multi::toJsonSerialization);
+		}
+
+		@Test
 		@DisplayName("All serialization formats allowed for single recipient and no AAD or unprotected header")
 		public void testSerializationWithSimpleJwe() {
 			var simpleJwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10));

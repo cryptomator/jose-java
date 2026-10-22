@@ -17,6 +17,7 @@ import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Set;
 
 public final class EcdhEsAlg extends AbstractKeyAlg {
 
@@ -50,6 +51,11 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 	@Override
 	public String name() {
 		return type.jwaAlgName;
+	}
+
+	@Override
+	public Set<String> generatedHeaderParams() {
+		return Set.of("alg", "epk");
 	}
 
 	@Override

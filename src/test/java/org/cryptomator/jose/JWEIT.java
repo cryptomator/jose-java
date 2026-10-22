@@ -22,13 +22,68 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.security.GeneralSecurityException;
+import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.util.stream.Stream;
 
-class JWEIntegrationTest {
+class JWEIT {
+
+	@Nested
+	@DisplayName("per-recipient headers")
+	class PerRecipientHeaders {
+
+		private final KeyWrapAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
+		private KeyPair ecKeyPair;
+
+		@BeforeEach
+		void setup() throws GeneralSecurityException {
+			var ecKeyGen = KeyPairGenerator.getInstance("EC");
+			ecKeyGen.initialize(new ECGenParameterSpec("secp384r1"));
+			ecKeyPair = ecKeyGen.generateKeyPair();
+		}
+
+		private static JsonObject json(String json) {
+			return JsonParser.parseString(json).getAsJsonObject();
+		}
+
+		@Test
+		@DisplayName("kid and private params are per recipient, visible before decryption, and returned with the decrypted header")
+		void testTwoRecipientsWithHeaders() throws JoseException {
+			var passwordRecipient = Recipient.withAlg(kek)
+					.withClaim("kid", "org.example.password")
+					.withClaim("org.example.argon2.salt", "c2FsdHNhbHRzYWx0")
+					.withClaim("org.example.argon2.iterations", 3)
+					.withClaim("org.example.argon2.committed", true);
+			var recoveryRecipient = Recipient.withAlg(Alg.ecdhEs(ecKeyPair.getPublic())).withClaim("kid", "org.example.recovery");
+
+			var jwe = JWE.build("payload").withProtectedHeader(json("{\"cty\":\"json\"}")).encrypt(Enc.A256GCM, passwordRecipient, recoveryRecipient).toJsonSerialization();
+			var parsed = JWE.parse(jwe);
+
+			// the protected header carries only shared params:
+			Assertions.assertEquals(json("{\"cty\":\"json\",\"enc\":\"A256GCM\"}"), parsed.parsedProtectedHeader());
+			// each recipient's header is readable up front:
+			var headers = parsed.recipientHeaders();
+			Assertions.assertEquals(2, headers.size());
+			Assertions.assertEquals("A256KW", headers.get(0).get("alg").getAsString());
+			Assertions.assertEquals("org.example.password", headers.get(0).get("kid").getAsString());
+			Assertions.assertEquals(3, headers.get(0).get("org.example.argon2.iterations").getAsInt());
+			Assertions.assertTrue(headers.get(0).get("org.example.argon2.committed").getAsBoolean());
+			Assertions.assertEquals("ECDH-ES+A256KW", headers.get(1).get("alg").getAsString());
+			Assertions.assertEquals("org.example.recovery", headers.get(1).get("kid").getAsString());
+			Assertions.assertTrue(headers.get(1).has("epk"));
+			// and either recipient decrypts, getting its own header back:
+			var viaPassword = parsed.decrypt(kek);
+			Assertions.assertEquals("payload", viaPassword.payload());
+			Assertions.assertEquals("org.example.password", viaPassword.unprotectedHeader().get("kid").getAsString());
+			var viaRecovery = parsed.decrypt(Alg.ecdhEs(ecKeyPair.getPrivate()));
+			Assertions.assertEquals("payload", viaRecovery.payload());
+			Assertions.assertEquals("org.example.recovery", viaRecovery.unprotectedHeader().get("kid").getAsString());
+		}
+
+	}
 
 	@Nested
 	@DisplayName("serialize and parse")

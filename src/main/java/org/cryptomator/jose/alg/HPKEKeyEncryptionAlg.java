@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Base64;
+import java.util.Set;
 
 /// HPKE Key Encryption as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6):
 /// HPKE seals the CEK, the encapsulated secret travels in the `ek` header parameter, and the content is encrypted with a regular [org.cryptomator.jose.Enc].
@@ -33,6 +34,11 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 	@Override
 	public String name() {
 		return hpke.baseName() + "-KE";
+	}
+
+	@Override
+	public Set<String> generatedHeaderParams() {
+		return Set.of("alg", "ek");
 	}
 
 	@Override

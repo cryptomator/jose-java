@@ -1,0 +1,122 @@
+package org.cryptomator.jose.builder;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import org.cryptomator.jose.Alg;
+import org.cryptomator.jose.Enc;
+import org.cryptomator.jose.JWE;
+import org.cryptomator.jose.KeyWrapAlg;
+import org.cryptomator.jose.Recipient;
+import org.cryptomator.jose.hpke.XwingProvider;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.util.Base64;
+
+/// Header assembly rules of the encrypt-side builders ([SimpleBuilder], [ComplexBuilder], [EncryptedJWEImpl]).
+class BuilderTest {
+
+	private final KeyWrapAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
+
+	private static JsonObject json(String json) {
+		return JsonParser.parseString(json).getAsJsonObject();
+	}
+
+	// the decoded protected header of a compact serialization
+	private static JsonObject protectedHeaderOf(String compact) {
+		var encoded = compact.substring(0, compact.indexOf('.'));
+		return json(new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8));
+	}
+
+	@Nested
+	@DisplayName("per-recipient header placement")
+	class Placement {
+
+		@Test
+		@DisplayName("single recipient, compact serialization: recipient params are folded into the protected header")
+		void testCompactFoldsIntoProtectedHeader() {
+			var jwe = JWE.build("payload").encrypt(Enc.A128GCM, Recipient.withAlg(kek).withClaim("kid", "org.example.kid")).toCompactSerialization();
+			Assertions.assertEquals(json("{\"enc\":\"A128GCM\",\"alg\":\"A256KW\",\"kid\":\"org.example.kid\"}"), protectedHeaderOf(jwe));
+		}
+
+		@Test
+		@DisplayName("single recipient with AAD: recipient params stay in the per-recipient header")
+		void testFlattenedKeepsPerRecipientHeader() {
+			var jwe = JWE.build("payload").withAad("YWFk").encrypt(Enc.A128GCM, Recipient.withAlg(kek).withClaim("kid", "org.example.kid")).toFlattenedJsonSerialization();
+			var json = JsonParser.parseString(jwe).getAsJsonObject();
+			Assertions.assertEquals(json("{\"alg\":\"A256KW\",\"kid\":\"org.example.kid\"}"), json.getAsJsonObject("header"));
+			Assertions.assertEquals(json("{\"enc\":\"A128GCM\"}"), json(new String(Base64.getUrlDecoder().decode(json.get("protected").getAsString()), StandardCharsets.UTF_8)));
+		}
+
+		@Test
+		@DisplayName("multiple recipients: each gets its own params, shared ones stay shared")
+		void testGeneralKeepsPerRecipientHeaders() {
+			var jwe = JWE.build("payload").withUnprotectedHeader(json("{\"shared\":true}"))
+					.encrypt(Enc.A256GCM, Recipient.withAlg(kek).withClaim("kid", "a"), Recipient.withAlg(kek).withClaim("kid", "b"))
+					.toJsonSerialization();
+			var json = JsonParser.parseString(jwe).getAsJsonObject();
+			var recipients = json.getAsJsonArray("recipients");
+			Assertions.assertEquals(2, recipients.size());
+			Assertions.assertEquals("a", recipients.get(0).getAsJsonObject().getAsJsonObject("header").get("kid").getAsString());
+			Assertions.assertEquals("b", recipients.get(1).getAsJsonObject().getAsJsonObject("header").get("kid").getAsString());
+			Assertions.assertEquals(json("{\"shared\":true}"), json.getAsJsonObject("unprotected"));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("header collisions")
+	class Collisions {
+
+		private KeyPair xwingKeyPair;
+
+		@BeforeEach
+		void setup() throws GeneralSecurityException {
+			xwingKeyPair = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE).generateKeyPair();
+		}
+
+		@Test
+		@DisplayName("encrypt rejects caller-supplied params the library derives (alg, enc)")
+		void testRejectsDerivedParams() {
+			var builder = JWE.build("payload");
+
+			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withProtectedHeader(json("{\"alg\":\"A256KW\"}")).encrypt(Enc.A256GCM, kek));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withProtectedHeader(json("{\"enc\":\"A256GCM\"}")).encrypt(Enc.A256GCM, kek));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withUnprotectedHeader(json("{\"enc\":\"A256GCM\"}")).encrypt(Enc.A256GCM, kek));
+		}
+
+		@Test
+		@DisplayName("encrypt rejects the same param in two header locations")
+		void testRejectsCollidingLocations() {
+			var builder = JWE.build("payload");
+			var withKid = Recipient.withAlg(kek).withClaim("kid", "k");
+
+			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withProtectedHeader(json("{\"kid\":\"k\"}")).encrypt(Enc.A256GCM, withKid));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withUnprotectedHeader(json("{\"kid\":\"k\"}")).encrypt(Enc.A256GCM, withKid));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.withProtectedHeader(json("{\"x\":1}")).withUnprotectedHeader(json("{\"x\":1}")).encrypt(Enc.A256GCM, kek));
+		}
+
+		@Test
+		@DisplayName("encrypt rejects an empty recipient list")
+		void testRejectsNoRecipients() {
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").encrypt(Enc.A256GCM, new Recipient[0]));
+		}
+
+		@Test
+		@DisplayName("Integrated Encryption rejects a caller-supplied alg instead of overwriting it")
+		void testIntegratedRejectsCallerAlg() {
+			var builder = JWE.build("payload").withProtectedHeader(json("{\"alg\":\"HPKE-9\"}"));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.encrypt(Alg.hpke9(xwingKeyPair.getPublic())));
+		}
+
+	}
+
+}

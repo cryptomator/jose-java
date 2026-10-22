@@ -8,15 +8,18 @@ import com.nimbusds.jose.JWEObject;
 import com.nimbusds.jose.JWEObjectJSON;
 import com.nimbusds.jose.crypto.AESDecrypter;
 import com.nimbusds.jose.crypto.ECDHDecrypter;
+import com.nimbusds.jose.crypto.MultiDecrypter;
 import com.nimbusds.jose.crypto.PasswordBasedDecrypter;
 import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JWE;
 import org.cryptomator.jose.JoseException;
 import org.cryptomator.jose.KeyEncryptionAlg;
+import org.cryptomator.jose.Recipient;
 import org.cryptomator.jose.util.Curve;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -106,6 +109,31 @@ class JoseToNimbusIT {
 			}
 		}
 		return result.build();
+	}
+
+	@Test
+	@DisplayName("general JSON with ECDH-ES and A256KW recipients, each decrypted by nimbus' MultiDecrypter via kid")
+	void mixedRecipientsGeneralJson() throws JOSEException, ParseException, JoseException {
+		var payload = InteropFixtures.PAYLOADS.get("utf8");
+		var ecKey = InteropFixtures.nimbusEcKey(Curve.P384);
+		var octKey = InteropFixtures.nimbusKek();
+		// nimbus' MultiDecrypter selects the recipient whose kid equals the JWK thumbprint:
+		var ecRecipient = Recipient.withAlg(Alg.ecdhEs(InteropFixtures.josePublicKey(Curve.P384))).withClaim("kid", ecKey.computeThumbprint().toString()).withClaim("org.example.role", "recovery");
+		var octRecipient = Recipient.withAlg(Alg.a256kw(InteropFixtures.joseKek())).withClaim("kid", octKey.computeThumbprint().toString());
+
+		for (var aad : List.of("", InteropFixtures.AAD)) {
+			var builder = JWE.build(payload).withProtectedHeader(InteropFixtures.PROTECTED_HEADER_EXTRAS.get("cty"));
+			var jwe = (aad.isEmpty() ? builder.encrypt(Enc.A256GCM, ecRecipient, octRecipient) : builder.withAad(aad).encrypt(Enc.A256GCM, ecRecipient, octRecipient)).toJsonSerialization();
+
+			for (var key : List.of(ecKey, octKey)) {
+				var parsed = JWEObjectJSON.parse(jwe);
+				Assertions.assertEquals(2, parsed.getRecipients().size());
+				parsed.decrypt(new MultiDecrypter(key));
+				Assertions.assertEquals(payload, parsed.getPayload().toString(), "recipient " + key.getKeyType());
+			}
+			var ecHeader = JWEObjectJSON.parse(jwe).getRecipients().getFirst().getUnprotectedHeader();
+			Assertions.assertEquals("recovery", ecHeader.getParam("org.example.role"));
+		}
 	}
 
 	@ParameterizedTest

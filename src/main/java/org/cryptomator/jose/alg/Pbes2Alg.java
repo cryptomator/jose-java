@@ -13,6 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Set;
 
 /// Key Encryption with [PBES2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8)
 public final class Pbes2Alg extends AbstractKeyAlg {
@@ -54,6 +55,11 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 	@Override
 	public String name() {
 		return algType.jwaAlgName;
+	}
+
+	@Override
+	public Set<String> generatedHeaderParams() {
+		return Set.of("alg", "p2s", "p2c");
 	}
 
 	@Override

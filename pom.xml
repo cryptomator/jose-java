@@ -220,6 +220,8 @@
 					<statelessTestsetInfoReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5StatelessTestsetInfoTreeReporter">
 						<theme>UNICODE</theme>
 						<githubStepSummary>true</githubStepSummary>
+						<hideResultsOnSuccess>true</hideResultsOnSuccess>
+						<printTestCounts>true</printTestCounts>
 					</statelessTestsetInfoReporter>
 				</configuration>
 			</plugin>
