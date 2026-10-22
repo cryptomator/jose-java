@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import org.cryptomator.jose.alg.AbstractKeyAlg;
 
 /// Key Encryption: the alg encrypts the content encryption key (CEK); the payload is encrypted by a separate [Enc].
-public sealed interface KeyEncryptionAlg extends EncryptionAlg permits AbstractKeyAlg {
+public sealed interface KeyEncryptionAlg extends EncryptionAlg permits AbstractKeyAlg, KeyWrapAlg {
 
 	/// @param combinedHeader The combined header (i.e. protected and shared unprotected), already containing the `enc` header parameter
 	/// @param cek The content encryption key to encrypt

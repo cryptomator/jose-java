@@ -4,14 +4,10 @@ import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.util.CryptoHelper;
 
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
@@ -72,17 +68,8 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 		var p2s = Base64.getUrlDecoder().decode(combinedHeader.get("p2s").getAsString());
 		var p2c = combinedHeader.get("p2c").getAsInt();
 		var wrappingKeyBytes = pbkdf2(algType, password, p2s, p2c);
-
 		try {
-			var wrappingKey = CryptoHelper.secretKey(wrappingKeyBytes, "AES");
-			var cipher = Cipher.getInstance("AESWrap");
-			cipher.init(Cipher.UNWRAP_MODE, wrappingKey);
-			var unwrappedKey = cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY);
-			return unwrappedKey.getEncoded();
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-			throw new AssertionError("JVM doesn't support AWS Key wrap", e);
-		} catch (InvalidKeyException e) {
-			throw new DecryptKeyException("Key unwrapping failed with given kek", e);
+			return AesKw.unwrap(CryptoHelper.secretKey(wrappingKeyBytes, "AES"), encryptedKey);
 		} finally {
 			Arrays.fill(wrappingKeyBytes, (byte) 0x00);
 		}
@@ -96,20 +83,9 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 		perRecipientHeader.addProperty("p2c", p2c);
 		perRecipientHeader.addProperty("p2s", Base64.getUrlEncoder().withoutPadding().encodeToString(p2s));
 		var wrappingKeyBytes = pbkdf2(algType, password, p2s, p2c);
-
 		try {
-			var keyToWrap = CryptoHelper.secretKey(cek, "AES");
-			var wrappingKey = CryptoHelper.secretKey(wrappingKeyBytes, "AES");
-			var cipher = Cipher.getInstance("AESWrap");
-			cipher.init(Cipher.WRAP_MODE, wrappingKey);
-			var encryptedKey = cipher.wrap(keyToWrap);
+			var encryptedKey = AesKw.wrap(CryptoHelper.secretKey(wrappingKeyBytes, "AES"), cek);
 			return new EncryptionResult(encryptedKey, perRecipientHeader);
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-			throw new AssertionError("JVM doesn't support AWS Key wrap", e);
-		} catch (InvalidKeyException e) {
-			throw new IllegalStateException("Key derived via PBKDF2 deemed inappropriate for key wrapping", e);
-		} catch (IllegalBlockSizeException e) {
-			throw new IllegalStateException("Wrapping key should not produce IllegalBlockSizeException", e);
 		} finally {
 			Arrays.fill(wrappingKeyBytes, (byte) 0x00);
 		}

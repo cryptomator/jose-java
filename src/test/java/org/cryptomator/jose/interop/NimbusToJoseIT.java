@@ -10,6 +10,7 @@ import com.nimbusds.jose.JWEHeader;
 import com.nimbusds.jose.JWEObject;
 import com.nimbusds.jose.JWEObjectJSON;
 import com.nimbusds.jose.Payload;
+import com.nimbusds.jose.crypto.AESEncrypter;
 import com.nimbusds.jose.crypto.ECDHEncrypter;
 import com.nimbusds.jose.crypto.MultiEncrypter;
 import com.nimbusds.jose.crypto.PasswordBasedEncrypter;
@@ -58,8 +59,13 @@ class NimbusToJoseIT {
 			return new KeyAlg("PBES2-HS512+A256KW", JWEAlgorithm.PBES2_HS512_A256KW, encrypter, Alg.pbes2(InteropFixtures.PASSWORD));
 		}
 
+		static KeyAlg a256kw() throws JOSEException {
+			var encrypter = new AESEncrypter(InteropFixtures.joseKek());
+			return new KeyAlg("A256KW", JWEAlgorithm.A256KW, encrypter, Alg.a256kw(InteropFixtures.joseKek()));
+		}
+
 		static List<KeyAlg> all() throws JoseException, JOSEException {
-			return List.of(ecdhEs(Curve.P256), ecdhEs(Curve.P384), ecdhEs(Curve.P521), pbes2());
+			return List.of(ecdhEs(Curve.P256), ecdhEs(Curve.P384), ecdhEs(Curve.P521), pbes2(), a256kw());
 		}
 
 	}
@@ -185,7 +191,9 @@ class NimbusToJoseIT {
 		Assertions.assertEquals(payload, decrypted.payload());
 		Assertions.assertEquals(InteropFixtures.AAD, decrypted.aad());
 		Assertions.assertEquals(alg.nimbusAlg().getName(), decrypted.protectedHeader().get("alg").getAsString());
-		Assertions.assertFalse(decrypted.unprotectedHeader().isEmpty(), "alg-generated params are expected in the shared unprotected header");
+		if (!JWEAlgorithm.A256KW.equals(alg.nimbusAlg())) { // A256KW is the only alg here that generates no header params
+			Assertions.assertFalse(decrypted.unprotectedHeader().isEmpty(), "alg-generated params are expected in the shared unprotected header");
+		}
 	}
 
 	static Stream<Arguments> singleRecipientJsonWithAad() throws JoseException, JOSEException {

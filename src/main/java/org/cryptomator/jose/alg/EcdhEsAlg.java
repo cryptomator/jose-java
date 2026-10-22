@@ -7,11 +7,7 @@ import org.cryptomator.jose.util.Curve;
 import org.cryptomator.jose.util.Destroyables;
 import org.cryptomator.jose.util.ECHelper;
 
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyAgreement;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -27,17 +23,15 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 	private static final String EC_ALG = "EC";
 
 	public enum Type {
-		ECDH_ES_A256KW("ECDH-ES+A256KW", "AESWrap", "AES",32),
+		ECDH_ES_A256KW("ECDH-ES+A256KW", "AES", 32),
 		;
 
 		private final String jwaAlgName;
-		private final String jcaKwAlgName;
 		private final String jcaKeyAlgName;
 		private final int keyLength;
 
-		Type(String jwaAlgName, String jcaKwAlgName, String jcaKeyAlgName, int keyLength) {
+		Type(String jwaAlgName, String jcaKeyAlgName, int keyLength) {
 			this.jwaAlgName = jwaAlgName;
-			this.jcaKwAlgName = jcaKwAlgName;
 			this.jcaKeyAlgName = jcaKeyAlgName;
 			this.keyLength = keyLength;
 		}
@@ -94,26 +88,18 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		}
 
 		// derive wrapping key using KDF:
-		final SecretKey wrappingKey;
+		final byte[] wrappingKeyBytes;
 		try {
-			var wrappingKeyBytes = deriveKey(sharedSecret, combinedHeader);
-			wrappingKey = new SecretKeySpec(wrappingKeyBytes, type.jcaKeyAlgName);
+			wrappingKeyBytes = deriveKey(sharedSecret, combinedHeader);
 		} finally {
 			Arrays.fill(sharedSecret, (byte) 0x00);
 		}
 
-		// wrap using AES key wrap:
+		// unwrap using AES key wrap:
 		try {
-			Cipher cipher = Cipher.getInstance(type.jcaKwAlgName);
-			cipher.init(Cipher.UNWRAP_MODE, wrappingKey);
-			var unwrapped = cipher.unwrap(encryptedKey, "AES", Cipher.SECRET_KEY); // TODO: cek type depends...
-			return unwrapped.getEncoded();
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-			throw new UnsupportedOperationException("JVM does not support " + type.jcaKwAlgName, e);
-		} catch (InvalidKeyException e) {
-			throw new IllegalStateException("Unsuitable wrapping key", e);
+			return AesKw.unwrap(new SecretKeySpec(wrappingKeyBytes, type.jcaKeyAlgName), encryptedKey);
 		} finally {
-			Destroyables.destroyQuietly(wrappingKey);
+			Arrays.fill(wrappingKeyBytes, (byte) 0x00);
 		}
 	}
 
@@ -146,10 +132,9 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		}
 
 		// derive wrapping key using KDF:
-		final SecretKey wrappingKey;
+		final byte[] wrappingKeyBytes;
 		try {
-			var wrappingKeyBytes = deriveKey(sharedSecret, combinedHeader);
-			wrappingKey = new SecretKeySpec(wrappingKeyBytes, type.jcaKeyAlgName);
+			wrappingKeyBytes = deriveKey(sharedSecret, combinedHeader);
 		} finally {
 			Arrays.fill(sharedSecret, (byte) 0x00);
 		}
@@ -157,18 +142,9 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		// wrap using AES key wrap:
 		final byte[] encryptedKey;
 		try {
-			SecretKey toBeWrapped = new SecretKeySpec(cek, "AES"); // TODO: cek type depends...
-			Cipher cipher = Cipher.getInstance(type.jcaKwAlgName);
-			cipher.init(Cipher.WRAP_MODE, wrappingKey);
-			encryptedKey = cipher.wrap(toBeWrapped);
-		} catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-			throw new UnsupportedOperationException("JVM does not support " + type.jcaKwAlgName, e);
-		} catch (InvalidKeyException e) {
-			throw new IllegalStateException("Unsuitable wrapping key", e);
-		} catch (IllegalBlockSizeException e) {
-			throw new IllegalStateException("CEK not multiple of block size", e);
+			encryptedKey = AesKw.wrap(new SecretKeySpec(wrappingKeyBytes, type.jcaKeyAlgName), cek);
 		} finally {
-			Destroyables.destroyQuietly(wrappingKey);
+			Arrays.fill(wrappingKeyBytes, (byte) 0x00);
 		}
 
 		// assemble header

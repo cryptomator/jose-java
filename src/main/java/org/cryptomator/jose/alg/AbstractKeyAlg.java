@@ -11,7 +11,7 @@ import java.util.Arrays;
 /// Abstract base for algorithms of the Key Encryption Key Management Mode: HPKE/PBES2/ECDH-ES protect (wrap) the content encryption key (CEK),
 /// which a separate [Enc] then uses to protect the payload. Subclasses only implement [#decryptKey] (and [KeyEncryptionAlg#encrypt]);
 /// this class composes the shared decrypt flow (resolve `enc`, unwrap the CEK, decrypt the content, then wipe the CEK).
-public abstract sealed class AbstractKeyAlg implements KeyEncryptionAlg, KeyDecryptionAlg permits EcdhEsAlg, Pbes2Alg, HPKEKeyEncryptionAlg {
+public abstract sealed class AbstractKeyAlg implements KeyEncryptionAlg, KeyDecryptionAlg permits AesKwAlg, EcdhEsAlg, Pbes2Alg, HPKEKeyEncryptionAlg {
 
 	@Override
 	public final byte[] decrypt(JsonObject combinedHeader, JweParts parts) throws JoseDecryptException {

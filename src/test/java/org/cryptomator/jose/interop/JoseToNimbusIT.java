@@ -6,6 +6,7 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWEDecrypter;
 import com.nimbusds.jose.JWEObject;
 import com.nimbusds.jose.JWEObjectJSON;
+import com.nimbusds.jose.crypto.AESDecrypter;
 import com.nimbusds.jose.crypto.ECDHDecrypter;
 import com.nimbusds.jose.crypto.PasswordBasedDecrypter;
 import org.cryptomator.jose.Alg;
@@ -46,8 +47,12 @@ class JoseToNimbusIT {
 			return new KeyAlg("PBES2-HS512+A256KW", joseAlg, new PasswordBasedDecrypter(new String(InteropFixtures.PASSWORD)));
 		}
 
+		static KeyAlg a256kw() throws JOSEException {
+			return new KeyAlg("A256KW", Alg.a256kw(InteropFixtures.joseKek()), new AESDecrypter(InteropFixtures.joseKek()));
+		}
+
 		static List<KeyAlg> all() throws JoseException, JOSEException {
-			return List.of(ecdhEs(Curve.P256), ecdhEs(Curve.P384), ecdhEs(Curve.P521), pbes2());
+			return List.of(ecdhEs(Curve.P256), ecdhEs(Curve.P384), ecdhEs(Curve.P521), pbes2(), a256kw());
 		}
 
 	}

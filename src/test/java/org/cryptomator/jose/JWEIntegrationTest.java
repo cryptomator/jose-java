@@ -20,6 +20,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import javax.crypto.spec.SecretKeySpec;
 import java.security.GeneralSecurityException;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.ECPrivateKey;
@@ -207,8 +208,10 @@ class JWEIntegrationTest {
 			var ecdhEs = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, (ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
 			var pbes2Hs256A128Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "secret".toCharArray(), 10);
 			var pbes2Hs512A256Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, "secret".toCharArray(), 10);
+			var a256kw = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
 
 			return Stream.of(
+					Arguments.argumentSet("A256KW", a256kw, a256kw),
 					Arguments.argumentSet("HPKE-0-KE", hpke0Ke, hpke0Ke),
 					Arguments.argumentSet("HPKE-1-KE", hpke1Ke, hpke1Ke),
 					Arguments.argumentSet("HPKE-2-KE", hpke2Ke, hpke2Ke),

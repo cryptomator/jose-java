@@ -1,5 +1,6 @@
 package org.cryptomator.jose;
 
+import org.cryptomator.jose.alg.AesKwAlg;
 import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.alg.HPKEIntegratedAlg;
 import org.cryptomator.jose.alg.HPKEKeyEncryptionAlg;
@@ -8,6 +9,7 @@ import org.cryptomator.jose.hpke.HPKE;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.cryptomator.jose.util.Curve;
 
+import javax.crypto.SecretKey;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
@@ -27,6 +29,16 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	// FACTORY METHODS
 
 	// TODO: which algorithms do we want to expose here?
+
+	/// Key Encryption with `A256KW` ([RFC 7518, Section 4.4](https://www.rfc-editor.org/rfc/rfc7518#section-4.4)) using a caller-supplied key encryption key,
+	/// e.g. one derived from a password with a KDF of the caller's choice. The returned instance serves both directions.
+	///
+	/// @param kek A 256-bit AES key, which remains owned (and eventually destroyed) by the caller
+	/// @return An algorithm instance usable for encryption and decryption
+	/// @throws IllegalArgumentException if the key is not a 256-bit AES key
+	static KeyWrapAlg a256kw(SecretKey kek) {
+		return new AesKwAlg(kek);
+	}
 
 	static KeyEncryptionAlg pbes2(char[] password, int iterationCount) {
 		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, iterationCount);
