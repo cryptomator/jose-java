@@ -9,6 +9,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -19,8 +21,9 @@ import java.util.Base64;
 public final class Pbes2Alg extends AbstractKeyAlg {
 
 	public enum Type {
-		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA512", 32),
-		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 16),
+		// see RFC 7518 Section 4.8: the PRF is HMAC with the named hash, the derived key length is the AES-KW key size
+		PBES2_HS256_A128KW("PBES2-HS256+A128KW", "PBKDF2WithHmacSHA256", 16),
+		PBES2_HS512_A256KW("PBES2-HS512+A256KW", "PBKDF2WithHmacSHA512", 32),
 		;
 
 		private final String jwaAlgName;
@@ -113,8 +116,11 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 	}
 
 	private static byte[] pbkdf2(Type type, char[] password, byte[] p2s, int p2c) {
+		// the PBKDF2 salt is UTF8(alg) || 0x00 || p2s, see RFC 7518 Section 4.8.1.1
+		var algBytes = type.jwaAlgName.getBytes(StandardCharsets.UTF_8);
+		var salt = ByteBuffer.allocate(algBytes.length + 1 + p2s.length).put(algBytes).put((byte) 0x00).put(p2s).array();
 		try {
-			var spec = new PBEKeySpec(password, p2s, p2c, type.keyLength * Byte.SIZE);
+			var spec = new PBEKeySpec(password, salt, p2c, type.keyLength * Byte.SIZE);
 			var keyFactory = SecretKeyFactory.getInstance(type.jcaAlgName);
 			return keyFactory.generateSecret(spec).getEncoded();
 		} catch (NoSuchAlgorithmException e) {

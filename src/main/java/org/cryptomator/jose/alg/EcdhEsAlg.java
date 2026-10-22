@@ -13,17 +13,12 @@ import javax.crypto.KeyAgreement;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
-import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
-import java.security.spec.ECPoint;
-import java.security.spec.ECPublicKeySpec;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
 
@@ -72,12 +67,12 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		}
 
 		// import ephemeral public key:
-		if (!combinedHeader.has("epk")) {
-			throw new IllegalStateException("No ephemeral public key available for decryption.");
+		if (!combinedHeader.has("epk") || !combinedHeader.get("epk").isJsonObject()) {
+			throw new DecryptKeyException("Missing or non-object 'epk' header");
 		}
 		ECPublicKey epk;
 		try {
-			var key = ECHelper.fromJwk(combinedHeader.get("epk").getAsJsonObject());
+			var key = ECHelper.fromJwk(combinedHeader.getAsJsonObject("epk"));
 			if (key instanceof ECPublicKey k) {
 				epk = k;
 			} else {
@@ -86,9 +81,17 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		} catch (JoseParseException e) {
 			throw new DecryptKeyException("Invalid 'epk'", e);
 		}
+		if (Curve.valueOf(epk.getParams().getCurve()) != curve) {
+			throw new DecryptKeyException("'epk' is not on the recipient key's curve"); // e.g. a multi-recipient JWE whose other recipients use different curves
+		}
 
 		// derive shared secret using ECDH-ES:
-		var sharedSecret = ecdh(epk, privateKey);
+		final byte[] sharedSecret;
+		try {
+			sharedSecret = ecdh(epk, privateKey);
+		} catch (InvalidKeyException e) {
+			throw new DecryptKeyException("Unsuitable key for ECDH", e);
+		}
 
 		// derive wrapping key using KDF:
 		final SecretKey wrappingKey;
@@ -136,6 +139,8 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		final byte[] sharedSecret;
 		try {
 			sharedSecret = ecdh(publicKey, ephPrivateKey);
+		} catch (InvalidKeyException e) {
+			throw new IllegalStateException("Unsuitable key for ECDH", e); // the recipient key was validated against the curve in the constructor
 		} finally {
 			Destroyables.destroyQuietly(ephPrivateKey);
 		}
@@ -175,7 +180,7 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		return new EncryptionResult(encryptedKey, perRecipientHeader);
 	}
 
-	private byte[] ecdh(ECPublicKey publicKey, ECPrivateKey privateKey) {
+	private byte[] ecdh(ECPublicKey publicKey, ECPrivateKey privateKey) throws InvalidKeyException {
 		try {
 			var keyAgreement = KeyAgreement.getInstance("ECDH");
 			keyAgreement.init(privateKey);
@@ -183,8 +188,6 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 			return keyAgreement.generateSecret();
 		} catch (NoSuchAlgorithmException e) {
 			throw new UnsupportedOperationException("JVM does not support ECDH", e);
-		} catch (InvalidKeyException e) {
-			throw new IllegalStateException("Unsuitable key", e);
 		}
 	}
 
@@ -193,7 +196,7 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		var algorithmId = type.jwaAlgName.getBytes(StandardCharsets.US_ASCII); // TODO: if alg is "ECDH-ES" (without key wrap), use "enc" value from header
 		var partyUInfo = combinedHeader.has("apu") ? Base64.getUrlDecoder().decode(combinedHeader.get("apu").getAsString()) : new byte[0];
 		var partyVInfo = combinedHeader.has("apv") ? Base64.getUrlDecoder().decode(combinedHeader.get("apv").getAsString()) : new byte[0];
-		var suppPubInfo = type.keyLength;
+		var suppPubInfo = type.keyLength * Byte.SIZE; // keydatalen in bits, see RFC 7518 Section 4.6.2
 		var suppPrivInfo = new byte[0];
 		ByteBuffer otherInfo = ByteBuffer.allocate(Integer.BYTES + algorithmId.length
 				+ Integer.BYTES + partyUInfo.length

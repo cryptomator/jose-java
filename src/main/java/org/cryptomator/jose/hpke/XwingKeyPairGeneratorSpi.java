@@ -122,12 +122,13 @@ public class XwingKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 		buf.flip();
 
 		// This SecureRandom implementation is a workaround to provide a fixed seed for the key generation.
-		// See internals of com.sun.crypto.provider.ML_KEM_Impls$KPG#implGenerateKeyPair
+		// See internals of com.sun.crypto.provider.ML_KEM_Impls$KPG#implGenerateKeyPair, which draws d and z either as two 32-byte
+		// requests (JDK 24 to 25.0.2) or as a single 64-byte seed (JDK 25.0.4+)
 		SecureRandom rnd = new SecureRandom() {
 			@Override
 			public void nextBytes(byte[] bytes) {
-				if (bytes.length != 32 || buf.remaining() < 32) {
-					throw new IllegalStateException("Expected to provide 2x 32 bytes.");
+				if ((bytes.length != 32 && bytes.length != 64) || buf.remaining() < bytes.length) {
+					throw new IllegalStateException("Expected to provide d || z as 2x 32 or 1x 64 bytes.");
 				}
 				buf.get(bytes);
 			}

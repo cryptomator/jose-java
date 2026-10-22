@@ -42,6 +42,7 @@
 		<!-- test dependencies -->
 		<junit.version>5.12.0</junit.version>
 		<mockito.version>5.18.0</mockito.version>
+		<nimbus-jose-jwt.version>10.10</nimbus-jose-jwt.version>
 	</properties>
 
 	<dependencies>
@@ -74,6 +75,13 @@
 			<version>33.4.0-jre</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<!-- second JOSE implementation for cross-implementation (interoperability) tests -->
+			<groupId>com.nimbusds</groupId>
+			<artifactId>nimbus-jose-jwt</artifactId>
+			<version>${nimbus-jose-jwt.version}</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -90,12 +98,25 @@
 					</execution>
 				</executions>
 				<configuration>
-					<!-- javadoc on JDK 21 ignores locale option, which is advised for reproducible builds -->
-					<additionalJOptions>
-						<additionalJOption>-J-Duser.language=en</additionalJOption>
-						<additionalJOption>-J-Duser.country=US</additionalJOption>
-					</additionalJOptions>
 					<release>${maven.compiler.release}</release>
+					<doclint>all,-missing</doclint>
+					<tags>
+						<tag>
+							<name>apiNote</name>
+							<placement>a</placement>
+							<head>API Note:</head>
+						</tag>
+						<tag>
+							<name>implSpec</name>
+							<placement>a</placement>
+							<head>Implementation Requirements:</head>
+						</tag>
+						<tag>
+							<name>implNote</name>
+							<placement>a</placement>
+							<head>Implementation Note:</head>
+						</tag>
+					</tags>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -137,16 +158,73 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.4</version>
+				<version>3.6.0</version>
+				<dependencies>
+					<dependency>
+						<groupId>me.fabriciorby</groupId>
+						<artifactId>maven-surefire-junit5-tree-reporter</artifactId>
+						<version>2.1.0</version>
+					</dependency>
+				</dependencies>
 				<configuration>
 					<useModulePath>true</useModulePath>
 					<argLine>
 						@{surefire.jacoco.args}
 						-javaagent:${net.bytebuddy:byte-buddy-agent:jar}
+						<!-- Forward Maven's temp dir to the forked JVM (sandboxed builds set it via MAVEN_OPTS; Mockito's inline mock maker needs a writable temp dir): -->
+						-Djava.io.tmpdir=${java.io.tmpdir}
 						<!-- Make @Hex param converter accessible: -->
 						--add-opens=org.cryptomator.jose/org.cryptomator.jose.util=ALL-UNNAMED
 					</argLine>
+					<reportFormat>plain</reportFormat>
+					<consoleOutputReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5ConsoleOutputTreeReporter">
+						<disable>false</disable>
+					</consoleOutputReporter>
+					<statelessTestsetInfoReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5StatelessTestsetInfoTreeReporter">
+						<theme>UNICODE</theme>
+						<githubStepSummary>true</githubStepSummary>
+					</statelessTestsetInfoReporter>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<version>3.6.0</version>
+				<dependencies>
+					<dependency>
+						<groupId>me.fabriciorby</groupId>
+						<artifactId>maven-surefire-junit5-tree-reporter</artifactId>
+						<version>2.1.0</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<!-- same module-path setup as surefire: ITs are patched into the org.cryptomator.jose module, too -->
+					<useModulePath>true</useModulePath>
+					<argLine>
+						@{surefire.jacoco.args}
+						-javaagent:${net.bytebuddy:byte-buddy-agent:jar}
+						-Djava.io.tmpdir=${java.io.tmpdir}
+						--add-opens=org.cryptomator.jose/org.cryptomator.jose.util=ALL-UNNAMED
+					</argLine>
+					<reportFormat>plain</reportFormat>
+					<consoleOutputReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5ConsoleOutputTreeReporter">
+						<disable>false</disable>
+					</consoleOutputReporter>
+					<statelessTestsetInfoReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5StatelessTestsetInfoTreeReporter">
+						<theme>UNICODE</theme>
+						<githubStepSummary>true</githubStepSummary>
+						<hideResultsOnSuccess>true</hideResultsOnSuccess>
+						<printTestCounts>true</printTestCounts>
+					</statelessTestsetInfoReporter>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

@@ -1,24 +1,23 @@
 package org.cryptomator.jose.alg;
 
+import com.google.gson.JsonParser;
+import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.DecryptionAlg;
+import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JWE;
 import org.cryptomator.jose.JWK;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.hpke.HPKE;
-import org.cryptomator.jose.hpke.XwingProvider;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.interfaces.ECPrivateKey;
-import java.security.spec.EncodedKeySpec;
-import java.security.spec.InvalidKeySpecException;
-import java.util.Base64;
 
 class HPKEKeyEncryptionAlgTest {
 
@@ -94,21 +93,65 @@ class HPKEKeyEncryptionAlgTest {
 	@DisplayName("HPKE-9-KE test vectors")
 	class Hpke9Ke {
 
-		// the "priv" value (X-Wing seed) of the AKP JWK from the test vector
-		private static final String PRIV = "q_aDEMZpRAjbiqHwO23vKcgImYieSqUsCK7wWZEsq8Y";
+		// AKP JWK (RFC 9964) from the test vector: "pub" is the X-Wing public key, "priv" the 32-byte seed
+		private static final String PRIVATE_JWK = """
+				{
+				  "kty": "AKP",
+				  "alg": "HPKE-9-KE",
+				  "kid": "I8THo1KoAq9OG96cJTyk2WF8abZqb3kKKHgdfajHUb8",
+				  "pub": "8rGsDcYDVYgHXJdoG_y4snlf_zZ2J7IJ_dyGafoU-8PBqdSb4dKAAggLvU\
+				LOi_kwqxCdLXqh7sinPlUPEQAXeaITnOkYJhCJN_tpWBBbZclC4sAXNHItUAV4Kf\
+				AmEgyll0KiqKRohYQjhwSlSAQhA9NwAPJhYMgZPWkDf1zFJexT_prKclLGRzU-Ak\
+				uACumcboErJqGYIRdXVfN7JqfIXfcNI_QCSpcpuAk_wMOWxOIj2WxdCMMfd1QBFK\
+				oAi1cM-_cuL1JWwOK5SsC7FKg5YJZdZPJ53RkFUusZPrhcWsZMsOFXJmgOjeV9bU\
+				WA1npKEJt7nDeU9EGbICVel-RChriHe1tcx4OFgUCrCBvEpJl9d0am5jqwYQB-Wm\
+				wVZ3IFVHM2c5NCb_MHhknJsaCqrSMmEUJ7XBpTWbdUlMNMMiq9Pcd2WwvMyoZmNa\
+				c_xKmk5VxkBqorWUZ3ieVwcGYt7cZO2mvJwilCccsz6TTIZnuymJU57-J510EbVf\
+				GXSBN3_BCpfwHAAqV-rZab5oWPFeYQikjAHieblCgN7bSKl6U-NCpoaPA-n1Q3jM\
+				Y-vzFy4iaM8ThfoXdzXQo0oLCvyOZ4aqlv4EqYQRFh51RN6Jkyk5eqUUaHmaAV_y\
+				yj7wBEkZNIDWNOy7ZAunaDl5tXFpUaPmHLQ4RQV1fCA8Y27gQ_4nOY2zdHhnq12W\
+				OrvNN-DrdGI0ShpNWzARMtM6yiDXUV2yR_b6KTDyq0YyMzQCHBQhscrXCN2QxXd4\
+				hHj-gjZzoJlim6XybGlrG6EaMkvIKfwuhZ7oxRTuC3hGJBSkMptQNg3Th4luol-F\
+				l7WepM0vOYOVyYdRANeszJ6WTKZJCtzUhPcSBzeImXaDqNeCAt9jIBXpoJX6m8RV\
+				iM4bW8YgtR6vK2ceNW5yWCAfOA9NmiBDAhFaMNTnueistr2eEJhzFZ2wJsT1MG-v\
+				G2EIyuUNBqwlNjVvR4vfEAWOmeBuA5v7By3ycsOMFv2hk2eGssIzmE86ZOj5Oj11\
+				QWFPRrSMx5zLdDu0ep_pPCYNUicStcDtIvy-pfJ2uEdBoJ5hdE9duIGZOlTeozIW\
+				deEcBrv-sEJmKk7hNeOSBpVpAlYDTDTVpvOik-mJAR_hbNnfCY55sFD7C-zxOfrj\
+				QdYwWLDSSH5mV4IQKzseJ8x1w5cbWWzbUqF2pNZBDEAjSpiqqVxgOAikaOwzMaWA\
+				ERNOeX6NFYkmga2nREl5t46woTvbqBTSxBMOxcS3KCbzmTcqrLVfS9Cci5DaAdUj\
+				ad8NzMQBoHywWIAFTA8Bl4p8cb7GqR9FcJYVsM6QlcjcGCZ5KhahgYOlBH5lw6bR\
+				Mi48JzHrRWa1otXxmXprcLF4QiBKEZfKpHrSsszlCAKOKytlG7_xtNPRZ_UeZmeT\
+				RiyHWVDCcQSzM2W9U_7hfGa-BErmW20CNBitqWZmEkmGRci2KxP7cJceuTXjpYAc\
+				VWm1x4ZVN1_JtCisCU5egDoXIi8uFHwZigKhcBUBIS-AepvSKNdCA3HqeWzydKaR\
+				zM6Hd1iEyiOQZdz4pcGDrkcsbOgiUpCHGM_OPeIAPlZ8DqRjh6Wxa8O8YwyrfJZs\
+				6vLUcAjW-Jn5AaNpQFWU_VdbhTDQ",
+				  "priv": "q_aDEMZpRAjbiqHwO23vKcgImYieSqUsCK7wWZEsq8Y"
+				}
+				""";
 
+		private PrivateKey privateKey;
 		private DecryptionAlg alg;
 
 		@BeforeEach
-		void setup() throws NoSuchAlgorithmException, InvalidKeySpecException {
-			var kf = KeyFactory.getInstance("X-Wing", XwingProvider.INSTANCE);
-			var privateKey = kf.generatePrivate(new EncodedKeySpec(Base64.getUrlDecoder().decode(PRIV)) {
-				@Override
-				public String getFormat() {
-					return "RAW";
-				}
-			});
-			this.alg = new HPKEKeyEncryptionAlg(HPKE.hpke9(), null, privateKey);
+		void setup() throws JoseParseException {
+			this.privateKey = (PrivateKey) JWK.parse(PRIVATE_JWK);
+			this.alg = Alg.hpke9Ke(privateKey);
+		}
+
+		@Test
+		@DisplayName("encrypt with the public JWK, decrypt with the private JWK")
+		void roundTrip() throws JoseParseException, JoseDecryptException {
+			var publicJwk = JsonParser.parseString(PRIVATE_JWK).getAsJsonObject();
+			publicJwk.remove("priv"); // JWK.parse returns the public key iff "priv" is absent
+			var publicKey = (PublicKey) JWK.parse(publicJwk);
+
+			var jwe = JWE.build(EXPECTED_PAYLOAD_EN_DASH).encrypt(Enc.A256GCM, Alg.hpke9Ke(publicKey)).toCompactSerialization();
+			var decrypted = JWE.parse(jwe).decrypt(alg); // succeeds only if "pub" is the public key belonging to the "priv" seed
+
+			Assertions.assertEquals(EXPECTED_PAYLOAD_EN_DASH, decrypted.payload());
+			Assertions.assertEquals("HPKE-9-KE", decrypted.protectedHeader().get("alg").getAsString());
+			Assertions.assertEquals("A256GCM", decrypted.protectedHeader().get("enc").getAsString());
+			Assertions.assertTrue(decrypted.protectedHeader().has("ek"));
 		}
 
 		@Test
