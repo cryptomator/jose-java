@@ -3,19 +3,12 @@ package org.cryptomator.jose.hpke;
 import org.cryptomator.jose.util.ArrayUtil;
 import org.cryptomator.jose.util.X25519;
 
-import javax.crypto.KeyAgreement;
-import java.math.BigInteger;
-import java.security.InvalidKeyException;
 import java.security.KeyFactory;
-import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.interfaces.XECPublicKey;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.NamedParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.security.spec.XECPrivateKeySpec;
-import java.security.spec.XECPublicKeySpec;
 import java.util.Arrays;
 
 class XwingPublicKey implements PublicKey {
