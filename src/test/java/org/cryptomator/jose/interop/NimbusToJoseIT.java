@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 ///   shared `unprotected` header. Without an explicit JWE AAD it binds the ciphertext to a header it does not serialize, so it is only usable with AAD.
 /// - `MultiEncrypter` (two or more recipients) emits per-recipient `header` objects with `alg`, `kid` and the alg-generated params; `alg` must then be
 ///   absent from the protected header.
-@DisplayName("nimbus → jose-java")
+@DisplayName("JWE: nimbus → jose-java")
 class NimbusToJoseIT {
 
 	enum Serialization {COMPACT, FLATTENED, GENERAL}

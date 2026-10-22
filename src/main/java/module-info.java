@@ -5,6 +5,7 @@ module org.cryptomator.jose {
 	exports org.cryptomator.jose;
 	exports org.cryptomator.jose.builder;
 	exports org.cryptomator.jose.parser;
+	exports org.cryptomator.jose.jws;
 
 	exports org.cryptomator.jose.hpke to java.base;
 	// provides Provider with org.cryptomator.jose.hpke.XwingProvider; // only required, if we want to find the provider by name

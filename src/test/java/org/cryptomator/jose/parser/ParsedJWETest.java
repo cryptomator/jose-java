@@ -2,7 +2,6 @@ package org.cryptomator.jose.parser;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JWE;

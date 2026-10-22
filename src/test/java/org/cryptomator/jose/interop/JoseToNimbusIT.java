@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /// Cross-implementation tests: jose-java encrypts, nimbus-jose-jwt decrypts.
-@DisplayName("jose-java → nimbus")
+@DisplayName("JWE: jose-java → nimbus")
 class JoseToNimbusIT {
 
 	enum Serialization {COMPACT, FLATTENED, GENERAL}

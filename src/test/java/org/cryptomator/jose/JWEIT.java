@@ -29,6 +29,7 @@ import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.util.stream.Stream;
 
+@DisplayName("JWE: end-to-end round trips")
 class JWEIT {
 
 	@Nested
