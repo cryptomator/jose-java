@@ -1,5 +1,6 @@
 package org.cryptomator.jose.alg;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.util.CryptoHelper;
@@ -34,6 +35,8 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 	}
 
 	private static final int SALT_LEN = 16;
+	private static final int MIN_SALT_LEN = 8; // RFC 7518 Section 4.8.1.1
+	private static final int MAX_P2C = 1_000_000; // the same cap nimbus-jose-jwt applies on decryption
 
 	private final Type algType;
 	private final char[] password;
@@ -55,18 +58,12 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 
 	@Override
 	protected byte[] decryptKey(JsonObject combinedHeader, byte[] encryptedKey) throws JoseDecryptException {
-		if (!name().equals(combinedHeader.get("alg").getAsString())) {
-			throw new IllegalArgumentException("alg is not " + algType.jwaAlgName);
+		var algHeader = combinedHeader.get("alg");
+		if (algHeader == null || !algHeader.isJsonPrimitive() || !name().equals(algHeader.getAsString())) {
+			throw new DecryptKeyException("alg is not " + algType.jwaAlgName);
 		}
-		if (!combinedHeader.has("p2s")) {
-			throw new IllegalArgumentException("p2s is missing");
-		}
-		if (!combinedHeader.has("p2c")) {
-			throw new IllegalArgumentException("p2c is missing");
-		}
-
-		var p2s = Base64.getUrlDecoder().decode(combinedHeader.get("p2s").getAsString());
-		var p2c = combinedHeader.get("p2c").getAsInt();
+		var p2s = decodeP2s(combinedHeader.get("p2s"));
+		var p2c = decodeP2c(combinedHeader.get("p2c"));
 		var wrappingKeyBytes = pbkdf2(algType, password, p2s, p2c);
 		try {
 			return AesKw.unwrap(CryptoHelper.secretKey(wrappingKeyBytes, "AES"), encryptedKey);
@@ -89,6 +86,35 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 		} finally {
 			Arrays.fill(wrappingKeyBytes, (byte) 0x00);
 		}
+	}
+
+	// the PBES2 Salt Input, see RFC 7518 Section 4.8.1.1: a base64url string encoding at least 8 octets
+	private static byte[] decodeP2s(JsonElement p2sHeader) throws DecryptKeyException {
+		if (p2sHeader == null || !p2sHeader.isJsonPrimitive() || !p2sHeader.getAsJsonPrimitive().isString()) {
+			throw new DecryptKeyException("Missing or non-string p2s header");
+		}
+		final byte[] p2s;
+		try {
+			p2s = Base64.getUrlDecoder().decode(p2sHeader.getAsString());
+		} catch (IllegalArgumentException e) {
+			throw new DecryptKeyException("p2s header is not base64url", e);
+		}
+		if (p2s.length < MIN_SALT_LEN) {
+			throw new DecryptKeyException("p2s must be at least " + MIN_SALT_LEN + " bytes long");
+		}
+		return p2s;
+	}
+
+	// the PBES2 Count, see RFC 7518 Section 4.8.1.2: a positive integer, capped to keep hostile tokens from consuming unbounded CPU time
+	private static int decodeP2c(JsonElement p2cHeader) throws DecryptKeyException {
+		if (p2cHeader == null || !p2cHeader.isJsonPrimitive() || !p2cHeader.getAsJsonPrimitive().isNumber()) {
+			throw new DecryptKeyException("Missing or non-numeric p2c header");
+		}
+		var p2c = p2cHeader.getAsNumber().doubleValue();
+		if (p2c != Math.rint(p2c) || p2c < 1 || p2c > MAX_P2C) {
+			throw new DecryptKeyException("p2c must be an integer between 1 and " + MAX_P2C);
+		}
+		return (int) p2c;
 	}
 
 	private static byte[] pbkdf2(Type type, char[] password, byte[] p2s, int p2c) {

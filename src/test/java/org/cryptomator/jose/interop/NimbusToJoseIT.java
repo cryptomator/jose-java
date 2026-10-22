@@ -20,7 +20,6 @@ import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.DecryptionAlg;
 import org.cryptomator.jose.JWE;
 import org.cryptomator.jose.JoseException;
-import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.util.Curve;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -79,7 +78,7 @@ class NimbusToJoseIT {
 	}
 
 	static DecryptionAlg joseEcdhEs(Curve curve) throws JoseException {
-		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, curve, null, InteropFixtures.josePrivateKey(curve));
+		return Alg.ecdhEs(InteropFixtures.josePrivateKey(curve));
 	}
 
 	static void addProtectedExtras(JWEHeader.Builder header, JsonObject protectedExtras) {

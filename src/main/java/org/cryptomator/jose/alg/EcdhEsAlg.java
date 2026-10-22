@@ -20,8 +20,6 @@ import java.util.Base64;
 
 public final class EcdhEsAlg extends AbstractKeyAlg {
 
-	private static final String EC_ALG = "EC";
-
 	public enum Type {
 		ECDH_ES_A256KW("ECDH-ES+A256KW", "AES", 32),
 		;
@@ -51,7 +49,7 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 
 	@Override
 	public String name() {
-		return "ECDH-ES+A256KW";
+		return type.jwaAlgName;
 	}
 
 	@Override
@@ -91,6 +89,8 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		final byte[] wrappingKeyBytes;
 		try {
 			wrappingKeyBytes = deriveKey(sharedSecret, combinedHeader);
+		} catch (IllegalArgumentException e) {
+			throw new DecryptKeyException("Invalid 'apu' or 'apv' header", e);
 		} finally {
 			Arrays.fill(sharedSecret, (byte) 0x00);
 		}
@@ -147,12 +147,10 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 			Arrays.fill(wrappingKeyBytes, (byte) 0x00);
 		}
 
-		// assemble header
+		// assemble header (apu/apv are not echoed: they are caller-supplied header params and already part of the JOSE Header)
 		JsonObject perRecipientHeader = new JsonObject();
 		perRecipientHeader.addProperty("alg", type.jwaAlgName);
 		perRecipientHeader.add("epk", ECHelper.toJwk(ephPublicKey));
-//		perRecipientHeader.addProperty("apu", combinedHeader.get("apu").getAsString());
-//		perRecipientHeader.addProperty("apv", combinedHeader.get("apv").getAsString());
 		return new EncryptionResult(encryptedKey, perRecipientHeader);
 	}
 
@@ -169,23 +167,50 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 
 	// visible for testing (org.cryptomator.jose.alg is not an exported package, so this is not public API): lets EcdhEsAlgTest verify apu/apv are wired into the ConcatKDF OtherInfo
 	public byte[] deriveKey(byte[] sharedSecret, JsonObject combinedHeader) {
-		var algorithmId = type.jwaAlgName.getBytes(StandardCharsets.US_ASCII); // TODO: if alg is "ECDH-ES" (without key wrap), use "enc" value from header
-		var partyUInfo = combinedHeader.has("apu") ? Base64.getUrlDecoder().decode(combinedHeader.get("apu").getAsString()) : new byte[0];
-		var partyVInfo = combinedHeader.has("apv") ? Base64.getUrlDecoder().decode(combinedHeader.get("apv").getAsString()) : new byte[0];
-		var suppPubInfo = type.keyLength * Byte.SIZE; // keydatalen in bits, see RFC 7518 Section 4.6.2
+		return deriveKey(sharedSecret, type.jwaAlgName, type.keyLength, combinedHeader); // TODO: if alg is "ECDH-ES" (without key wrap), use "enc" value from header
+	}
+
+	/// Derives a key from the ECDH shared secret with the Concat KDF as specified in [RFC 7518, Section 4.6.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.6.2).
+	///
+	/// @param sharedSecret The ECDH shared secret `Z`
+	/// @param algorithmId The `AlgorithmID` field: the `alg` value for key agreement with key wrapping, the `enc` value for direct key agreement
+	/// @param keyLength The desired key length in bytes
+	/// @param combinedHeader The combined header, whose optional `apu`/`apv` params become `PartyUInfo`/`PartyVInfo`
+	/// @return The derived key
+	/// @throws IllegalArgumentException if `apu` or `apv` is present but not a base64url string
+	public static byte[] deriveKey(byte[] sharedSecret, String algorithmId, int keyLength, JsonObject combinedHeader) {
+		var algorithmIdBytes = algorithmId.getBytes(StandardCharsets.US_ASCII);
+		var partyUInfo = optionalBase64Param(combinedHeader, "apu");
+		var partyVInfo = optionalBase64Param(combinedHeader, "apv");
+		var suppPubInfo = keyLength * Byte.SIZE; // keydatalen in bits
 		var suppPrivInfo = new byte[0];
-		ByteBuffer otherInfo = ByteBuffer.allocate(Integer.BYTES + algorithmId.length
+		ByteBuffer otherInfo = ByteBuffer.allocate(Integer.BYTES + algorithmIdBytes.length
 				+ Integer.BYTES + partyUInfo.length
 				+ Integer.BYTES + partyVInfo.length
 				+ Integer.BYTES
 				+ suppPrivInfo.length
 		);
-		otherInfo.putInt(algorithmId.length).put(algorithmId);
+		otherInfo.putInt(algorithmIdBytes.length).put(algorithmIdBytes);
 		otherInfo.putInt(partyUInfo.length).put(partyUInfo);
 		otherInfo.putInt(partyVInfo.length).put(partyVInfo);
 		otherInfo.putInt(suppPubInfo);
 		otherInfo.put(suppPrivInfo);
-		return ConcatKDF.sha256().kdf(sharedSecret, type.keyLength, otherInfo.array());
+		return ConcatKDF.sha256().kdf(sharedSecret, keyLength, otherInfo.array());
+	}
+
+	// returns the decoded value of an optional base64url-encoded header param, or an empty array if absent
+	private static byte[] optionalBase64Param(JsonObject header, String name) {
+		var param = header.get(name);
+		if (param == null) {
+			return new byte[0];
+		} else if (!param.isJsonPrimitive() || !param.getAsJsonPrimitive().isString()) {
+			throw new IllegalArgumentException("'" + name + "' header must be a string");
+		}
+		try {
+			return Base64.getUrlDecoder().decode(param.getAsString());
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("'" + name + "' header is not base64url", e);
+		}
 	}
 
 }

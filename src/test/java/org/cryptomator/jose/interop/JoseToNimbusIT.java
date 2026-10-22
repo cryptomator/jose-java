@@ -14,7 +14,6 @@ import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JWE;
 import org.cryptomator.jose.JoseException;
 import org.cryptomator.jose.KeyEncryptionAlg;
-import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.util.Curve;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -37,7 +36,7 @@ class JoseToNimbusIT {
 
 		static KeyAlg ecdhEs(Curve curve) throws JoseException, JOSEException {
 			var name = "ECDH-ES+A256KW/" + curve.name();
-			var joseAlg = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, curve, InteropFixtures.josePublicKey(curve), null);
+			var joseAlg = Alg.ecdhEs(InteropFixtures.josePublicKey(curve));
 			var decrypter = new ECDHDecrypter(InteropFixtures.nimbusEcKey(curve).toECPrivateKey());
 			return new KeyAlg(name, joseAlg, decrypter);
 		}

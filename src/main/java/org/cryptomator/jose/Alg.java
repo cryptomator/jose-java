@@ -48,18 +48,30 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, 0);
 	}
 
+	/// Key Encryption with `ECDH-ES+A256KW` ([RFC 7518, Section 4.6](https://www.rfc-editor.org/rfc/rfc7518#section-4.6)) on the key's curve (P-256, P-384 or P-521).
+	///
+	/// @param privateKey The recipient's EC private key
+	/// @return The decryption algorithm
+	/// @throws IllegalArgumentException if the key is not an EC key on a supported curve
 	static DecryptionAlg ecdhEs(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
-		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, null, Curve.P384.ensureSameCurve(k));
+		var curve = Curve.valueOf(k.getParams().getCurve());
+		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, curve, null, k);
 	}
 
+	/// Key Encryption with `ECDH-ES+A256KW` ([RFC 7518, Section 4.6](https://www.rfc-editor.org/rfc/rfc7518#section-4.6)) on the key's curve (P-256, P-384 or P-521).
+	///
+	/// @param publicKey The recipient's EC public key
+	/// @return The encryption algorithm
+	/// @throws IllegalArgumentException if the key is not an EC key on a supported curve, or not a valid point on that curve
 	static KeyEncryptionAlg ecdhEs(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
-		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, Curve.P384.ensureSameCurve(k), null);
+		var curve = Curve.valueOf(k.getParams().getCurve());
+		return new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, curve, curve.validate(k), null);
 	}
 
 	/// Integrated Encryption with `HPKE-0`, as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5)
