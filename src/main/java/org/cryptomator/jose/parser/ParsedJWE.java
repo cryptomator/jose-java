@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.DecryptionAlg;
+import org.cryptomator.jose.IntegratedDecryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.enc.DecryptCiphertextException;
 import org.cryptomator.jose.util.Ascii;
@@ -75,15 +76,26 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		} catch (IllegalArgumentException e) {
 			throw new JoseDecryptException("Malformed JWE: protected header and aad must be US-ASCII", e);
 		}
-		var decodedIv = base64url.decode(iv);
-		var decodedCiphertext = base64url.decode(ciphertext);
-		var decodedTag = base64url.decode(tag);
+		final byte[] decodedIv, decodedCiphertext, decodedTag;
+		try {
+			decodedIv = base64url.decode(iv);
+			decodedCiphertext = base64url.decode(ciphertext);
+			decodedTag = base64url.decode(tag);
+		} catch (IllegalArgumentException e) {
+			throw new JoseDecryptException("Malformed JWE: iv, ciphertext and tag must be base64url", e); // shared by all recipients, so not worth retrying
+		}
 
 		var candidates = kid.isPresent() ? recipientsWithKid(kid.get(), sharedHeader) : recipients.asList();
 		var failure = new JoseDecryptException(kid.isPresent() ? "Recipient '" + kid.get() + "' could not be decrypted." : "No matching recipient found for decryption.");
 		for (var recipient : candidates) {
 			var recipientJson = recipient.getAsJsonObject();
-			var encryptedKey = base64url.decode(recipientJson.get("encrypted_key").getAsString());
+			final byte[] encryptedKey;
+			try {
+				encryptedKey = base64url.decode(recipientJson.get("encrypted_key").getAsString());
+			} catch (IllegalArgumentException e) {
+				failure.addSuppressed(new JoseDecryptException("Malformed encrypted_key: not base64url", e));
+				continue;
+			}
 			var perRecipientUnprotectedHeader = recipientJson.has("header")
 					? recipientJson.get("header").getAsJsonObject()
 					: new JsonObject();
@@ -99,6 +111,11 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 				if (!algValue.equals(alg.name())) {
 					continue;
 				}
+				if (alg instanceof IntegratedDecryptionAlg && !parsedProtectedHeader.has("alg")) {
+					// draft-ietf-jose-hpke-encrypt §5: for Integrated Encryption the protected header MUST contain alg (it is part of the HPKE aad)
+					failure.addSuppressed(new JoseDecryptException("alg must be in the protected header for Integrated Encryption"));
+					continue;
+				}
 				try {
 					var payload = alg.decrypt(combinedHeader, parts);
 					return new DecryptedJWE(new String(payload, StandardCharsets.UTF_8), parsedProtectedHeader, JsonHelper.union(unprotectedHeader, perRecipientUnprotectedHeader), aad);
@@ -106,6 +123,8 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 					throw e; // the key matched but the content is corrupt; other recipients share the same ciphertext and would fail identically
 				} catch (JoseDecryptException e) {
 					failure.addSuppressed(e); // this recipient/alg does not apply (wrong key, mode mismatch, malformed header); try the next candidate
+				} catch (IllegalArgumentException | IllegalStateException e) {
+					failure.addSuppressed(new JoseDecryptException("Malformed recipient: " + e.getMessage(), e)); // defense in depth: an alg tripping over a malformed header must not abort the loop
 				}
 			}
 		}

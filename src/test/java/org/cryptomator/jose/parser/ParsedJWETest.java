@@ -10,7 +10,9 @@ import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.JoseException;
 import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.Recipient;
+import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.hpke.XwingProvider;
+import org.cryptomator.jose.util.Curve;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,7 +24,9 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.security.spec.ECGenParameterSpec;
 import java.util.Base64;
+import java.util.List;
 
 class ParsedJWETest {
 
@@ -70,6 +74,40 @@ class ParsedJWETest {
 	void testNonStringEnc() {
 		var malformed = malformed("{\"alg\":\"PBES2-HS512+A256KW\",\"enc\":{}}");
 		Assertions.assertThrows(JoseDecryptException.class, () -> malformed.decrypt(Alg.pbes2(PASSWORD)));
+	}
+
+	@Test
+	@DisplayName("non-base64url iv, ciphertext or tag fail with a checked exception")
+	void testMalformedBase64Parts() {
+		for (var field : List.of("iv", "ciphertext", "tag")) {
+			var malformed = new ParsedJWE(valid.protectedHeader(), valid.unprotectedHeader(), valid.recipients(),
+					field.equals("iv") ? "!" : valid.iv(), field.equals("ciphertext") ? "!" : valid.ciphertext(), field.equals("tag") ? "!" : valid.tag(), valid.aad());
+			Assertions.assertThrows(JoseDecryptException.class, () -> malformed.decrypt(Alg.pbes2(PASSWORD)), field);
+		}
+	}
+
+	@Test
+	@DisplayName("a non-base64url encrypted_key is skipped in favor of a later valid recipient")
+	void testMalformedEncryptedKeyIsSkipped() throws JoseDecryptException {
+		var broken = valid.recipients().get(0).getAsJsonObject().deepCopy();
+		broken.addProperty("encrypted_key", "!");
+		var recipients = new JsonArray();
+		recipients.add(broken);
+		recipients.add(valid.recipients().get(0));
+		var withBrokenFirst = new ParsedJWE(valid.protectedHeader(), valid.unprotectedHeader(), recipients, valid.iv(), valid.ciphertext(), valid.tag(), valid.aad());
+		Assertions.assertEquals("payload", withBrokenFirst.decrypt(Alg.pbes2(PASSWORD)).payload());
+	}
+
+	@Test
+	@DisplayName("an alg throwing an unchecked exception on a recipient does not abort the loop")
+	void testUncheckedAlgFailureIsSkipped() throws Exception {
+		var ecKeyGen = KeyPairGenerator.getInstance("EC");
+		ecKeyGen.initialize(new ECGenParameterSpec("secp384r1"));
+		var ecKeyPair = ecKeyGen.generateKeyPair();
+		var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.ecdhEs(ecKeyPair.getPublic()), Alg.pbes2(PASSWORD, 10)).toJsonSerialization();
+		var misconfigured = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, null, null); // matches the first recipient's alg, throws IllegalStateException (no private key)
+
+		Assertions.assertEquals("payload", JWE.parse(jwe).decrypt(misconfigured, Alg.pbes2(PASSWORD)).payload());
 	}
 
 	@Test

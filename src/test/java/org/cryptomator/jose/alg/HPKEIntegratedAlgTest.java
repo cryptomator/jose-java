@@ -15,6 +15,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
 
@@ -95,6 +98,23 @@ class HPKEIntegratedAlgTest {
 			// the specific reason survives as a suppressed exception on the "no matching recipient" failure
 			Assertions.assertEquals(1, thrown.getSuppressed().length);
 			Assertions.assertTrue(thrown.getSuppressed()[0].getMessage().contains("enc and ek headers must not be present"));
+		}
+
+		@Test
+		@DisplayName("reject alg outside the protected header")
+		void rejectUnprotectedAlg() throws JoseParseException {
+			// draft §5: the protected header MUST contain alg; moving it to the unprotected header would take it out of the HPKE aad
+			var json = JsonParser.parseString(FLATTENED_JWE).getAsJsonObject();
+			var protectedHeader = JWE.parse(FLATTENED_JWE).parsedProtectedHeader();
+			var algValue = protectedHeader.remove("alg");
+			json.addProperty("protected", Base64.getUrlEncoder().withoutPadding().encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8)));
+			var unprotected = new JsonObject();
+			unprotected.add("alg", algValue);
+			json.add("unprotected", unprotected);
+			var parsed = JWE.parse(json.toString());
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			Assertions.assertEquals(1, thrown.getSuppressed().length);
+			Assertions.assertTrue(thrown.getSuppressed()[0].getMessage().contains("protected header"));
 		}
 
 		@Test
