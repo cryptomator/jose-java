@@ -1,9 +1,9 @@
 package org.cryptomator.jose;
 
 import com.google.gson.JsonObject;
-import org.cryptomator.jose.builder.EncryptedJWE;
-import org.cryptomator.jose.builder.SimpleEncryptedJWE;
-import org.cryptomator.jose.builder.SingleRecipientEncryptedJWE;
+import org.cryptomator.jose.jwe.EncryptedJWE;
+import org.cryptomator.jose.jwe.SimpleEncryptedJWE;
+import org.cryptomator.jose.jwe.SingleRecipientEncryptedJWE;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

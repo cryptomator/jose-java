@@ -6,7 +6,7 @@ import org.cryptomator.jose.alg.EcdhEsAlg;
 import org.cryptomator.jose.alg.HPKEIntegratedAlg;
 import org.cryptomator.jose.alg.HPKEKeyEncryptionAlg;
 import org.cryptomator.jose.alg.Pbes2Alg;
-import org.cryptomator.jose.builder.SimpleEncryptedJWE;
+import org.cryptomator.jose.jwe.SimpleEncryptedJWE;
 import org.cryptomator.jose.hpke.HPKE;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.cryptomator.jose.util.Curve;

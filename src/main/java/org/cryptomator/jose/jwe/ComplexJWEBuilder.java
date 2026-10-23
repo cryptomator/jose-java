@@ -1,4 +1,4 @@
-package org.cryptomator.jose.builder;
+package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.Enc;
@@ -8,27 +8,27 @@ import org.cryptomator.jose.Recipient;
 
 import java.util.Arrays;
 
-public record ComplexBuilder(String payload, JsonObject protectedHeader, JsonObject unprotectedHeader, String aad) implements Builder {
+public record ComplexJWEBuilder(String payload, JsonObject protectedHeader, JsonObject unprotectedHeader, String aad) implements JWEBuilder {
 
 	@Override
 	public String toString() {
-		return "ComplexBuilder[payload=<redacted>, protectedHeader=" + protectedHeader + ", unprotectedHeader=" + unprotectedHeader + ", aad=" + aad + "]"; // keep the plaintext out of logs and debugger views
+		return "ComplexJWEBuilder[payload=<redacted>, protectedHeader=" + protectedHeader + ", unprotectedHeader=" + unprotectedHeader + ", aad=" + aad + "]"; // keep the plaintext out of logs and debugger views
 	}
 
 	/// Sets the JWE Protected Header. "Protected" means integrity-protected: its parameters are authenticated but transmitted in cleartext, so they must not contain secrets.
 	///
 	/// @param protectedHeader Header parameters replacing the current ones (`alg` and `enc` are added when encrypting)
 	/// @return A copy of this builder with the given protected header
-	public ComplexBuilder withProtectedHeader(JsonObject protectedHeader) {
-		return new ComplexBuilder(payload, protectedHeader, unprotectedHeader, aad);
+	public ComplexJWEBuilder withProtectedHeader(JsonObject protectedHeader) {
+		return new ComplexJWEBuilder(payload, protectedHeader, unprotectedHeader, aad);
 	}
 
 	/// Sets the JWE Shared Unprotected Header, whose parameters are neither encrypted nor integrity-protected.
 	///
 	/// @param unprotectedHeader Header parameters replacing the current ones
 	/// @return A copy of this builder with the given shared unprotected header
-	public ComplexBuilder withUnprotectedHeader(JsonObject unprotectedHeader) {
-		return new ComplexBuilder(payload, protectedHeader, unprotectedHeader, aad);
+	public ComplexJWEBuilder withUnprotectedHeader(JsonObject unprotectedHeader) {
+		return new ComplexJWEBuilder(payload, protectedHeader, unprotectedHeader, aad);
 	}
 
 	public SingleRecipientEncryptedJWE encrypt(Enc enc, KeyEncryptionAlg alg) {

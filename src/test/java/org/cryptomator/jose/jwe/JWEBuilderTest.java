@@ -1,4 +1,4 @@
-package org.cryptomator.jose.builder;
+package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -21,8 +21,8 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
 
-/// Header assembly rules of the encrypt-side builders ([SimpleBuilder], [ComplexBuilder], [EncryptedJWEImpl]).
-class BuilderTest {
+/// Header assembly rules of the encrypt-side builders ([SimpleJWEBuilder], [ComplexJWEBuilder], [EncryptedJWEImpl]).
+class JWEBuilderTest {
 
 	private final SymmetricKeyAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
 

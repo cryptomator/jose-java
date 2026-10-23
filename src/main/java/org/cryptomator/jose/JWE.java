@@ -1,9 +1,9 @@
 package org.cryptomator.jose;
 
-import org.cryptomator.jose.builder.Builder;
-import org.cryptomator.jose.builder.SimpleBuilder;
-import org.cryptomator.jose.parser.ParsedJWE;
-import org.cryptomator.jose.parser.Parser;
+import org.cryptomator.jose.jwe.JWEBuilder;
+import org.cryptomator.jose.jwe.SimpleJWEBuilder;
+import org.cryptomator.jose.jwe.ParsedJWE;
+import org.cryptomator.jose.jwe.JWEParser;
 
 import java.util.Set;
 
@@ -34,11 +34,11 @@ public interface JWE {
 	/// @return The parsed, not yet decrypted JWE
 	/// @throws JoseParseException if the token is malformed, violates the JOSE Header rules, or lists a critical extension that is not understood
 	static ParsedJWE parse(String token, String... understoodCrit) throws JoseParseException {
-		return Parser.parse(token, Set.of(understoodCrit));
+		return JWEParser.parse(token, Set.of(understoodCrit));
 	}
 
-	static SimpleBuilder build(String payload) {
-		return Builder.withPayload(payload);
+	static SimpleJWEBuilder build(String payload) {
+		return JWEBuilder.withPayload(payload);
 	}
 
 }

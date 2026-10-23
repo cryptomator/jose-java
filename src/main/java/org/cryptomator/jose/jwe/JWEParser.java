@@ -1,4 +1,4 @@
-package org.cryptomator.jose.parser;
+package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -16,7 +16,7 @@ import java.util.Set;
 
 /// Parses a JWE in any of the three serializations ([RFC 7516, Section 7](https://www.rfc-editor.org/rfc/rfc7516#section-7)) into a [ParsedJWE].
 /// Structural checks happen here (member types, JOSE Header rules incl. `crit`); cryptographic checks happen on decryption.
-public class Parser {
+public class JWEParser {
 
 	public static ParsedJWE parse(String token) throws JoseParseException {
 		return parse(token, Set.of());

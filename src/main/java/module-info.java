@@ -3,8 +3,7 @@ module org.cryptomator.jose {
 	requires org.bouncycastle.provider;
 
 	exports org.cryptomator.jose;
-	exports org.cryptomator.jose.builder;
-	exports org.cryptomator.jose.parser;
+	exports org.cryptomator.jose.jwe;
 	exports org.cryptomator.jose.jws;
 
 	exports org.cryptomator.jose.hpke to java.base;

@@ -1,4 +1,4 @@
-package org.cryptomator.jose.builder;
+package org.cryptomator.jose.jwe;
 
 /// An [EncryptedJWE] without AAD or an unprotected header and only a single Recipient.
 public interface SimpleEncryptedJWE extends SingleRecipientEncryptedJWE {

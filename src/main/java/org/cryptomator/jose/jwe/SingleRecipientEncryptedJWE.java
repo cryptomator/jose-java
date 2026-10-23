@@ -1,4 +1,4 @@
-package org.cryptomator.jose.builder;
+package org.cryptomator.jose.jwe;
 
 /// An [EncryptedJWE] with a single recipient.
 public interface SingleRecipientEncryptedJWE extends EncryptedJWE {

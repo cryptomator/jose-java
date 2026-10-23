@@ -1,4 +1,4 @@
-package org.cryptomator.jose.builder;
+package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -27,7 +27,7 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 	private static final String ALG_GENERATED = "alg-generated recipient header";
 
 	// https://www.rfc-editor.org/rfc/rfc7516#section-5.1, single recipient without AAD or shared unprotected header: all header params go into the protected header
-	static EncryptedJWEImpl build(SimpleBuilder builder, Enc enc, Recipient recipient) {
+	static EncryptedJWEImpl build(SimpleJWEBuilder builder, Enc enc, Recipient recipient) {
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// generate cek:
@@ -57,7 +57,7 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 	}
 
 	// https://www.rfc-editor.org/rfc/rfc7516#section-7.2.1: per-recipient params stay in each recipient's own header
-	static EncryptedJWEImpl build(ComplexBuilder builder, Enc enc, Recipient... recipients) {
+	static EncryptedJWEImpl build(ComplexJWEBuilder builder, Enc enc, Recipient... recipients) {
 		if (recipients.length == 0) {
 			throw new IllegalArgumentException("At least one recipient is required");
 		}
@@ -95,7 +95,7 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 	}
 
 	// https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5
-	static EncryptedJWEImpl build(ComplexBuilder builder, IntegratedEncryptionAlg alg) {
+	static EncryptedJWEImpl build(ComplexJWEBuilder builder, IntegratedEncryptionAlg alg) {
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// prepare protected header:

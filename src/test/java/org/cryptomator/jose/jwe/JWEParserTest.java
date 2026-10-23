@@ -1,4 +1,4 @@
-package org.cryptomator.jose.parser;
+package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -20,7 +20,7 @@ import java.security.KeyPairGenerator;
 import java.util.Base64;
 import java.util.List;
 
-class ParserTest {
+class JWEParserTest {
 
 	private JsonObject validJwe() {
 		// a valid PBES2 JWE carries enc in the protected header

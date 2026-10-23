@@ -1,4 +1,4 @@
-package org.cryptomator.jose.parser;
+package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Optional;
 
 /// A parsed, not yet decrypted JWE in any of the three serializations, normalized to the General JSON Serialization's structure.
-/// Instances produced by [Parser] have passed the JOSE Header checks (incl. `crit`); instances constructed directly have not.
+/// Instances produced by [JWEParser] have passed the JOSE Header checks (incl. `crit`); instances constructed directly have not.
 ///
 /// @param protectedHeader   BASE64URL(UTF8(JWE Protected Header))
 /// @param unprotectedHeader JWE Shared Unprotected Header

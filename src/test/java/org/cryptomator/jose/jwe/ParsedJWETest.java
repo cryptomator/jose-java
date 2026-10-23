@@ -1,4 +1,4 @@
-package org.cryptomator.jose.parser;
+package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
