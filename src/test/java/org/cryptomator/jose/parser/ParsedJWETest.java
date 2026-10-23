@@ -36,7 +36,7 @@ class ParsedJWETest {
 	@BeforeEach
 	void setup() throws JoseParseException {
 		// a valid PBES2 (Key Encryption) JWE with a 12-byte iv and a 16-byte tag
-		var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2(PASSWORD, 10)).toJsonSerialization();
+		var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2(PASSWORD, 1000)).toJsonSerialization();
 		valid = JWE.parse(jwe);
 	}
 
@@ -103,7 +103,7 @@ class ParsedJWETest {
 		var ecKeyGen = KeyPairGenerator.getInstance("EC");
 		ecKeyGen.initialize(new ECGenParameterSpec("secp384r1"));
 		var ecKeyPair = ecKeyGen.generateKeyPair();
-		var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.ecdhEs(ecKeyPair.getPublic()), Alg.pbes2(PASSWORD, 10)).toJsonSerialization();
+		var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.ecdhEs(ecKeyPair.getPublic()), Alg.pbes2(PASSWORD, 1000)).toJsonSerialization();
 		var misconfigured = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, null, null); // matches the first recipient's alg, throws IllegalStateException (no private key)
 
 		Assertions.assertEquals("payload", JWE.parse(jwe).decrypt(misconfigured, Alg.pbes2(PASSWORD)).payload());

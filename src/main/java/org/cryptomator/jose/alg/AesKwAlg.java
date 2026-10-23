@@ -2,14 +2,14 @@ package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
-import org.cryptomator.jose.KeyWrapAlg;
+import org.cryptomator.jose.SymmetricKeyAlg;
 
 import javax.crypto.SecretKey;
 import java.util.Arrays;
 
 /// Key Encryption with AES Key Wrap using a caller-supplied 256-bit key encryption key (`A256KW`), as defined in
 /// [RFC 7518, Section 4.4](https://www.rfc-editor.org/rfc/rfc7518#section-4.4).
-public final class AesKwAlg extends AbstractKeyAlg implements KeyWrapAlg {
+public final class AesKwAlg extends AbstractKeyAlg implements SymmetricKeyAlg {
 
 	private static final String ALG_NAME = "A256KW";
 	private static final int KEY_LENGTH = 32;

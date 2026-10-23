@@ -36,7 +36,7 @@ class JWEIT {
 	@DisplayName("per-recipient headers")
 	class PerRecipientHeaders {
 
-		private final KeyWrapAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
+		private final SymmetricKeyAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
 		private KeyPair ecKeyPair;
 
 		@BeforeEach
@@ -94,7 +94,7 @@ class JWEIT {
 
 		@BeforeEach
 		public void setup() {
-			encryptedJWE = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10));
+			encryptedJWE = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000));
 		}
 
 		@Test
@@ -262,8 +262,8 @@ class JWEIT {
 			var hpke2Ke = new HPKEKeyEncryptionAlg(HPKE.hpke2(), p521KeyPair.getPublic(), p521KeyPair.getPrivate());
 			var hpke9Ke = new HPKEKeyEncryptionAlg(HPKE.hpke9(), xwingKeyPair.getPublic(), xwingKeyPair.getPrivate());
 			var ecdhEs = new EcdhEsAlg(EcdhEsAlg.Type.ECDH_ES_A256KW, Curve.P384, (ECPublicKey) p384KeyPair.getPublic(), (ECPrivateKey) p384KeyPair.getPrivate());
-			var pbes2Hs256A128Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "secret".toCharArray(), 10);
-			var pbes2Hs512A256Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, "secret".toCharArray(), 10);
+			var pbes2Hs256A128Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "secret".toCharArray(), 1000);
+			var pbes2Hs512A256Kw = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, "secret".toCharArray(), 1000);
 			var a256kw = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
 
 			return Stream.of(

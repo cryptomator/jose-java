@@ -26,7 +26,7 @@ class Pbes2AlgTest {
 		private static final byte[] ENCRYPTED_KEY = Base64.getUrlDecoder().decode("TrqXOwuNUfDV9VPTNbyGvEJ9JMjefAVn-TR1uIxR9p6hsRQh9Tk7BA");
 		private static final byte[] CEK = {111, 27, 25, 52, 66, 29, 20, 78, 92, (byte) 176, 56, (byte) 240, 65, (byte) 208, 82, 112, (byte) 161, (byte) 131, 36, 55, (byte) 202, (byte) 236, (byte) 185, (byte) 172, (byte) 129, 23, (byte) 153, (byte) 194, (byte) 195, 48, (byte) 253, (byte) 182};
 
-		private final Pbes2Alg alg = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, PASSWORD, 0);
+		private final Pbes2Alg alg = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, PASSWORD, 1000);
 
 		private static JsonObject header(String alg, String p2s, Number p2c) {
 			var header = new JsonObject();
@@ -49,7 +49,7 @@ class Pbes2AlgTest {
 		@Test
 		@DisplayName("wrong password fails the key unwrap integrity check")
 		void testWrongPassword() {
-			var wrongAlg = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "wrong".toCharArray(), 0);
+			var wrongAlg = new Pbes2Alg(Pbes2Alg.Type.PBES2_HS256_A128KW, "wrong".toCharArray(), 1000);
 			Assertions.assertThrows(DecryptKeyException.class, () -> wrongAlg.decryptKey(header("PBES2-HS256+A128KW", P2S, P2C), ENCRYPTED_KEY));
 		}
 
@@ -99,6 +99,44 @@ class Pbes2AlgTest {
 		jwe.getAsJsonArray("recipients").get(0).getAsJsonObject().getAsJsonObject("header").remove("p2s");
 
 		Assertions.assertEquals("payload", JWE.parse(jwe.toString()).decrypt(Alg.pbes2("secret".toCharArray())).payload());
+	}
+
+
+	@Nested
+	@DisplayName("iteration count")
+	class IterationCount {
+
+		@Test
+		@DisplayName("the single-arg factory encrypts with the default iteration count and decrypts")
+		void testDefaultP2c() throws JoseException {
+			var alg = Alg.pbes2("secret".toCharArray());
+			var parsed = JWE.parse(JWE.build("payload").encrypt(Enc.A256GCM, alg).toCompactSerialization());
+
+			Assertions.assertEquals(Pbes2Alg.DEFAULT_P2C, parsed.parsedProtectedHeader().get("p2c").getAsInt());
+			Assertions.assertEquals("payload", parsed.decrypt(alg).payload());
+		}
+
+		@Test
+		@DisplayName("p2c below MIN_P2C is rejected on construction")
+		void testP2cTooSmall() {
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Alg.pbes2("secret".toCharArray(), Pbes2Alg.MIN_P2C - 1));
+		}
+
+		@Test
+		@DisplayName("p2c above MAX_P2C is rejected on construction")
+		void testP2cTooLarge() {
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Alg.pbes2("secret".toCharArray(), Pbes2Alg.MAX_P2C + 1));
+		}
+
+		@Test
+		@DisplayName("p2c of exactly MAX_P2C round-trips")
+		void testP2cAtMax() throws JoseException {
+			var alg = Alg.pbes2("secret".toCharArray(), Pbes2Alg.MAX_P2C);
+			var jwe = JWE.build("payload").encrypt(Enc.A256GCM, alg).toCompactSerialization();
+
+			Assertions.assertEquals("payload", JWE.parse(jwe).decrypt(alg).payload());
+		}
+
 	}
 
 }

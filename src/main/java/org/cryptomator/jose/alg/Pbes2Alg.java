@@ -3,7 +3,9 @@ package org.cryptomator.jose.alg;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.SymmetricKeyAlg;
 import org.cryptomator.jose.util.CryptoHelper;
+import org.cryptomator.jose.util.Destroyables;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -15,8 +17,8 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Set;
 
-/// Key Encryption with [PBES2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8)
-public final class Pbes2Alg extends AbstractKeyAlg {
+/// Key Encryption with [PBES2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8). One instance serves both directions.
+public final class Pbes2Alg extends AbstractKeyAlg implements SymmetricKeyAlg {
 
 	public enum Type {
 		// see RFC 7518 Section 4.8: the PRF is HMAC with the named hash, the derived key length is the AES-KW key size
@@ -35,18 +37,30 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 		}
 	}
 
+	/// The default PBKDF2 iteration count used for encryption: OWASP's recommendation for PBKDF2-HMAC-SHA512, well above [#MIN_P2C].
+	public static final int DEFAULT_P2C = 210_000;
+
+	/// The minimum PBKDF2 iteration count accepted for encryption, as recommended by [RFC 7518, Section 4.8.1.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2).
+	public static final int MIN_P2C = 1000;
+
+	/// The maximum PBKDF2 iteration count accepted on both sides (the same cap nimbus-jose-jwt applies on decryption), so that every token produced can also be decrypted.
+	public static final int MAX_P2C = 1_000_000;
+
 	private static final int SALT_LEN = 16;
 	private static final int MIN_SALT_LEN = 8; // RFC 7518 Section 4.8.1.1
-	private static final int MAX_P2C = 1_000_000; // the same cap nimbus-jose-jwt applies on decryption
 
 	private final Type algType;
 	private final char[] password;
 	private final int p2c;
 
 	/// @param algType PBES2 algorithm type
-	/// @param password the password used to derive the wrapping key
-	/// @param p2c the PBKEDF2 iteration count (will be ignored for decryption)
+	/// @param password the password used to derive the wrapping key, which remains owned (and eventually wiped) by the caller
+	/// @param p2c the PBKDF2 iteration count used for encryption, between [#MIN_P2C] and [#MAX_P2C] (ignored for decryption, where it is read from the header)
+	/// @throws IllegalArgumentException if p2c is below the minimum of 1000 recommended by [RFC 7518, Section 4.8.1.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2) or above [#MAX_P2C]
 	public Pbes2Alg(Type algType, char[] password, int p2c) {
+		if (p2c < MIN_P2C || p2c > MAX_P2C) {
+			throw new IllegalArgumentException("p2c must be between " + MIN_P2C + " and " + MAX_P2C + ", but was: " + p2c);
+		}
 		this.algType = algType;
 		this.password = password;
 		this.p2c = p2c;
@@ -127,14 +141,22 @@ public final class Pbes2Alg extends AbstractKeyAlg {
 		// the PBKDF2 salt is UTF8(alg) || 0x00 || p2s, see RFC 7518 Section 4.8.1.1
 		var algBytes = type.jwaAlgName.getBytes(StandardCharsets.UTF_8);
 		var salt = ByteBuffer.allocate(algBytes.length + 1 + p2s.length).put(algBytes).put((byte) 0x00).put(p2s).array();
+		// PBEKeySpec and the derived PBKDF2 key each hold their own copy of the password, which only clearPassword()/destroy() wipe
+		var spec = new PBEKeySpec(password, salt, p2c, type.keyLength * Byte.SIZE);
 		try {
-			var spec = new PBEKeySpec(password, salt, p2c, type.keyLength * Byte.SIZE);
 			var keyFactory = SecretKeyFactory.getInstance(type.jcaAlgName);
-			return keyFactory.generateSecret(spec).getEncoded();
+			var key = keyFactory.generateSecret(spec);
+			try {
+				return key.getEncoded();
+			} finally {
+				Destroyables.destroyQuietly(key);
+			}
 		} catch (NoSuchAlgorithmException e) {
 			throw new IllegalStateException(type.jcaAlgName + " not supported on this JVM", e);
 		} catch (InvalidKeySpecException e) {
 			throw new IllegalArgumentException(e);
+		} finally {
+			spec.clearPassword();
 		}
 	}
 }

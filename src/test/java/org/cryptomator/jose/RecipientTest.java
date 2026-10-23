@@ -16,7 +16,7 @@ import java.security.spec.ECGenParameterSpec;
 
 class RecipientTest {
 
-	private final KeyWrapAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
+	private final SymmetricKeyAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
 	private KeyPair ecKeyPair;
 	private KeyPair xwingKeyPair;
 

@@ -24,7 +24,7 @@ class ParserTest {
 
 	private JsonObject validJwe() {
 		// a valid PBES2 JWE carries enc in the protected header
-		var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10)).toJsonSerialization();
+		var jwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000)).toJsonSerialization();
 		return JsonParser.parseString(jwe).getAsJsonObject();
 	}
 

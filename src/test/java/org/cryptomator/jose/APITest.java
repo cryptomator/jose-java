@@ -30,7 +30,7 @@ public class APITest {
 		@Test
 		@DisplayName("Only General JSON serialization allowed when having multiple recipients")
 		public void testSerializationWithMultipleRecipients() {
-			var withMultipleRecipients = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10), Alg.pbes2("secret".toCharArray(), 10));
+			var withMultipleRecipients = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000), Alg.pbes2("secret".toCharArray(), 1000));
 
 			Assertions.assertInstanceOf(EncryptedJWE.class, withMultipleRecipients);
 			Assertions.assertDoesNotThrow(() -> EncryptedJWE.class.getMethod(TO_GENERAL_JSON));
@@ -41,7 +41,7 @@ public class APITest {
 		@Test
 		@DisplayName("Only General or Flattened JSON serialization allowed when having AAD")
 		public void testSerializationWithAadOrUnprotectedHeader() {
-			var withAAD = JWE.build("payload").withAad("aad").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10));
+			var withAAD = JWE.build("payload").withAad("aad").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000));
 
 			Assertions.assertInstanceOf(SingleRecipientEncryptedJWE.class, withAAD);
 			Assertions.assertDoesNotThrow(() -> SingleRecipientEncryptedJWE.class.getMethod(TO_GENERAL_JSON));
@@ -54,7 +54,7 @@ public class APITest {
 		public void testSerializationWithUnprotectedHeader() {
 			var obj = new JsonObject();
 			obj.addProperty("foo", "bar");
-			var withUnprotectedHeader = JWE.build("payload").withUnprotectedHeader(obj).encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10));
+			var withUnprotectedHeader = JWE.build("payload").withUnprotectedHeader(obj).encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000));
 
 			Assertions.assertInstanceOf(SingleRecipientEncryptedJWE.class, withUnprotectedHeader);
 			Assertions.assertDoesNotThrow(() -> SingleRecipientEncryptedJWE.class.getMethod(TO_GENERAL_JSON));
@@ -65,7 +65,7 @@ public class APITest {
 		@Test
 		@DisplayName("Recipient overloads preserve the type-state of the alg overloads")
 		public void testRecipientOverloads() {
-			var recipient = Recipient.withAlg(Alg.pbes2("secret".toCharArray(), 10)).withClaim("kid", "kid");
+			var recipient = Recipient.withAlg(Alg.pbes2("secret".toCharArray(), 1000)).withClaim("kid", "kid");
 
 			Assertions.assertInstanceOf(SimpleEncryptedJWE.class, JWE.build("payload").encrypt(Enc.A256GCM, recipient));
 			Assertions.assertInstanceOf(SingleRecipientEncryptedJWE.class, JWE.build("payload").withAad("aad").encrypt(Enc.A256GCM, recipient));
@@ -76,7 +76,7 @@ public class APITest {
 		@Test
 		@DisplayName("All serialization formats allowed for single recipient and no AAD or unprotected header")
 		public void testSerializationWithSimpleJwe() {
-			var simpleJwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 10));
+			var simpleJwe = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000));
 
 			Assertions.assertInstanceOf(SimpleEncryptedJWE.class, simpleJwe);
 			Assertions.assertDoesNotThrow(() -> SimpleEncryptedJWE.class.getMethod(TO_GENERAL_JSON));

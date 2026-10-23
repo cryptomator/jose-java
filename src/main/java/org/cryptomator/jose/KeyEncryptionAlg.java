@@ -6,7 +6,7 @@ import org.cryptomator.jose.alg.AbstractKeyAlg;
 import java.util.Set;
 
 /// Key Encryption: the alg encrypts the content encryption key (CEK); the payload is encrypted by a separate [Enc].
-public sealed interface KeyEncryptionAlg extends EncryptionAlg permits AbstractKeyAlg, KeyWrapAlg {
+public sealed interface KeyEncryptionAlg extends EncryptionAlg permits AbstractKeyAlg, SymmetricKeyAlg {
 
 	/// @param combinedHeader The combined header (i.e. protected and shared unprotected), already containing the `enc` header parameter
 	/// @param cek The content encryption key to encrypt

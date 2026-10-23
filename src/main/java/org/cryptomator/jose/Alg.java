@@ -36,16 +36,30 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// @param kek A 256-bit AES key, which remains owned (and eventually destroyed) by the caller
 	/// @return An algorithm instance usable for encryption and decryption
 	/// @throws IllegalArgumentException if the key is not a 256-bit AES key
-	static KeyWrapAlg a256kw(SecretKey kek) {
+	static SymmetricKeyAlg a256kw(SecretKey kek) {
 		return new AesKwAlg(kek);
 	}
 
-	static KeyEncryptionAlg pbes2(char[] password, int iterationCount) {
-		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, iterationCount);
+	/// Key Encryption with `PBES2-HS512+A256KW` ([RFC 7518, Section 4.8](https://www.rfc-editor.org/rfc/rfc7518#section-4.8)) using a caller-supplied password
+	/// and the default PBKDF2 iteration count ({@value Pbes2Alg#DEFAULT_P2C}). The returned instance serves both directions; on decryption, the iteration count is read from the `p2c` header.
+	///
+	/// @param password The password, which remains owned (and eventually wiped) by the caller
+	/// @return An algorithm instance usable for encryption and decryption
+	static SymmetricKeyAlg pbes2(char[] password) {
+		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, Pbes2Alg.DEFAULT_P2C);
 	}
 
-	static DecryptionAlg pbes2(char[] password) {
-		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, 0);
+	/// Key Encryption with `PBES2-HS512+A256KW` ([RFC 7518, Section 4.8](https://www.rfc-editor.org/rfc/rfc7518#section-4.8)) using a caller-supplied password
+	/// and a custom PBKDF2 iteration count. The returned instance serves both directions; on decryption, the iteration count is read from the `p2c` header.
+	///
+	/// Prefer [#pbes2(char\[\])] unless you have a reason to deviate from the default.
+	///
+	/// @param password The password, which remains owned (and eventually wiped) by the caller
+	/// @param iterationCount The PBKDF2 iteration count used for encryption, between {@value Pbes2Alg#MIN_P2C} and {@value Pbes2Alg#MAX_P2C} (larger counts would produce tokens this library refuses to decrypt)
+	/// @return An algorithm instance usable for encryption and decryption
+	/// @throws IllegalArgumentException if the iteration count is below the minimum of {@value Pbes2Alg#MIN_P2C} recommended by [RFC 7518, Section 4.8.1.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2) or above {@value Pbes2Alg#MIN_P2C}
+	static SymmetricKeyAlg pbes2(char[] password, int iterationCount) {
+		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, iterationCount);
 	}
 
 	/// Key Encryption with `ECDH-ES+A256KW` ([RFC 7518, Section 4.6](https://www.rfc-editor.org/rfc/rfc7518#section-4.6)) on the key's curve (P-256, P-384 or P-521).

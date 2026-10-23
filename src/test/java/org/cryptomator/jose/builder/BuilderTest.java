@@ -5,7 +5,7 @@ import com.google.gson.JsonParser;
 import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JWE;
-import org.cryptomator.jose.KeyWrapAlg;
+import org.cryptomator.jose.SymmetricKeyAlg;
 import org.cryptomator.jose.Recipient;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.junit.jupiter.api.Assertions;
@@ -24,7 +24,7 @@ import java.util.Base64;
 /// Header assembly rules of the encrypt-side builders ([SimpleBuilder], [ComplexBuilder], [EncryptedJWEImpl]).
 class BuilderTest {
 
-	private final KeyWrapAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
+	private final SymmetricKeyAlg kek = Alg.a256kw(new SecretKeySpec(new byte[32], "AES"));
 
 	private static JsonObject json(String json) {
 		return JsonParser.parseString(json).getAsJsonObject();
