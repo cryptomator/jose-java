@@ -29,7 +29,7 @@ public record ParsedJWS(String protectedHeader, String payload, String signature
 		return new String(Base64.getUrlDecoder().decode(payload), StandardCharsets.UTF_8);
 	}
 
-	/// Verifies the signature with the first provided algorithm whose name matches the `alg` header.
+	/// Verifies the signature with the provided algorithms whose name matches the `alg` header, e.g. several HS256 instances during key rotation.
 	///
 	/// @param algs The candidate MAC algorithms
 	/// @return The verified JWS
@@ -39,16 +39,21 @@ public record ParsedJWS(String protectedHeader, String payload, String signature
 		var algValue = header.get("alg").getAsString();
 		var signingInput = Ascii.strictBytes(protectedHeader + "." + payload);
 		var expected = Base64.getUrlDecoder().decode(signature);
+		var algMatched = false;
 		for (var alg : algs) {
 			if (!algValue.equals(alg.name())) {
 				continue;
 			}
+			algMatched = true;
 			if (MessageDigest.isEqual(alg.sign(signingInput), expected)) {
 				return new VerifiedJWS(unverifiedPayload(), header);
 			}
-			throw new JoseVerifyException("Invalid signature");
 		}
-		throw new JoseVerifyException("No provided algorithm matches alg '" + algValue + "'");
+		if (algMatched) {
+			throw new JoseVerifyException("Invalid signature");
+		} else {
+			throw new JoseVerifyException("No provided algorithm matches alg '" + algValue + "'");
+		}
 	}
 
 }

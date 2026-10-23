@@ -116,6 +116,11 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 					failure.addSuppressed(new JoseDecryptException("alg must be in the protected header for Integrated Encryption"));
 					continue;
 				}
+				if (alg instanceof IntegratedDecryptionAlg && recipients.size() != 1) {
+					// draft-ietf-jose-hpke-encrypt §5: Integrated Encryption has exactly one recipient (HPKE encrypts the payload directly, there is no shared CEK)
+					failure.addSuppressed(new JoseDecryptException("Integrated Encryption requires exactly one recipient"));
+					continue;
+				}
 				try {
 					var payload = alg.decrypt(combinedHeader, parts);
 					return new DecryptedJWE(new String(payload, StandardCharsets.UTF_8), parsedProtectedHeader, JsonHelper.union(unprotectedHeader, perRecipientUnprotectedHeader), aad);

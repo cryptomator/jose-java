@@ -19,7 +19,8 @@ public final class AESGCM implements Enc {
 
 	private static final String CIPHER_ALG_NAME = "AES/GCM/NoPadding";
 	private static final String SECRET_KEY_ALG_NAME = "AES";
-	private static final int TAG_LEN_BYTES = 16;
+	private static final int IV_LEN_BYTES = 12; // RFC 7518 Section 5.3: 96-bit IV
+	private static final int TAG_LEN_BYTES = 16; // RFC 7518 Section 5.3: 128-bit tag
 
 	private final String name;
 	private final int keyLength;
@@ -41,11 +42,18 @@ public final class AESGCM implements Enc {
 
 	@Override
 	public byte[] generateIv() {
-		return CryptoHelper.randomBytes(12);
+		return CryptoHelper.randomBytes(IV_LEN_BYTES);
 	}
 
 	@Override
 	public EncryptionResult encrypt(byte[] cek, byte[] iv, byte[] aad, byte[] plaintext) {
+		// the JDK accepts any AES key size and any IV length, so enforce the sizes fixed by RFC 7518 Section 5.3 for the declared enc ourselves
+		if (cek.length != keyLength) {
+			throw new IllegalArgumentException(name + " requires a " + keyLength + "-byte CEK, but got " + cek.length + " bytes");
+		}
+		if (iv.length != IV_LEN_BYTES) {
+			throw new IllegalArgumentException(name + " requires a " + IV_LEN_BYTES + "-byte IV, but got " + iv.length + " bytes");
+		}
 		try {
 			Cipher cipher = Cipher.getInstance(CIPHER_ALG_NAME);
 			var params = new GCMParameterSpec(TAG_LEN_BYTES * Byte.SIZE, iv);
@@ -68,6 +76,16 @@ public final class AESGCM implements Enc {
 
 	@Override
 	public byte[] decrypt(byte[] cek, byte[] iv, byte[] aad, byte[] ciphertext, byte[] tag) throws JoseDecryptException {
+		// RFC 7516 Section 5.2 step 9 and RFC 7518 Section 5.3: the CEK, IV and tag sizes are fixed by the declared enc; the JDK alone would accept other AES key sizes and IV lengths
+		if (cek.length != keyLength) {
+			throw new DecryptCiphertextException(name + " requires a " + keyLength + "-byte CEK, but got " + cek.length + " bytes");
+		}
+		if (iv.length != IV_LEN_BYTES) {
+			throw new DecryptCiphertextException(name + " requires a " + IV_LEN_BYTES + "-byte IV, but got " + iv.length + " bytes");
+		}
+		if (tag.length != TAG_LEN_BYTES) {
+			throw new DecryptCiphertextException(name + " requires a " + TAG_LEN_BYTES + "-byte tag, but got " + tag.length + " bytes");
+		}
 		try {
 			Cipher cipher = Cipher.getInstance(CIPHER_ALG_NAME);
 			var params = new GCMParameterSpec(TAG_LEN_BYTES * Byte.SIZE, iv);

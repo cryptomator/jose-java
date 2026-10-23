@@ -119,6 +119,14 @@ class ParserTest {
 		}
 	}
 
+	@Test
+	@DisplayName("whitespace around the JSON serialization is tolerated")
+	void testSurroundingWhitespace() throws JoseException {
+		var jwe = validJwe().toString();
+		Assertions.assertDoesNotThrow(() -> JWE.parse("  " + jwe + "  "));
+		Assertions.assertDoesNotThrow(() -> JWE.parse("\n\t" + jwe + "\n"));
+	}
+
 	@Nested
 	@DisplayName("crit")
 	class Crit {

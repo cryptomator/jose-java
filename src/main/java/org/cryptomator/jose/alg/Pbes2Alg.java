@@ -15,6 +15,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Objects;
 import java.util.Set;
 
 /// Key Encryption with [PBES2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8). One instance serves both directions.
@@ -57,12 +58,13 @@ public final class Pbes2Alg extends AbstractKeyAlg implements SymmetricKeyAlg {
 	/// @param password the password used to derive the wrapping key, which remains owned (and eventually wiped) by the caller
 	/// @param p2c the PBKDF2 iteration count used for encryption, between [#MIN_P2C] and [#MAX_P2C] (ignored for decryption, where it is read from the header)
 	/// @throws IllegalArgumentException if p2c is below the minimum of 1000 recommended by [RFC 7518, Section 4.8.1.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2) or above [#MAX_P2C]
+	/// @throws NullPointerException if password is null
 	public Pbes2Alg(Type algType, char[] password, int p2c) {
 		if (p2c < MIN_P2C || p2c > MAX_P2C) {
 			throw new IllegalArgumentException("p2c must be between " + MIN_P2C + " and " + MAX_P2C + ", but was: " + p2c);
 		}
 		this.algType = algType;
-		this.password = password;
+		this.password = Objects.requireNonNull(password, "password"); // PBEKeySpec would silently treat null as the empty password
 		this.p2c = p2c;
 	}
 

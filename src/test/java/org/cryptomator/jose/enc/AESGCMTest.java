@@ -1,16 +1,19 @@
 package org.cryptomator.jose.enc;
 
+import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.util.Hex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 class AESGCMTest {
 
 	// test vectors 1-10 from wycheproof: https://github.com/C2SP/wycheproof/blob/df4e933efef449fc88af0c06e028d425d84a9495/testvectors/aes_gcm_test.json
-	@DisplayName("Encrypt with A256GCM")
+	@DisplayName("Encrypt with A128GCM")
 	@ParameterizedTest
 	@CsvSource({
 			"5b9604fe14eadba931b0ccf34843dab9, 028318abc1824029138141a2, '', 001d0c231287c1182784554ca3a21908, 26073cc1d851beff176384dc9896d5ff, 0a3ea7a5487cb5f7d70fb6c58d038554",
@@ -25,7 +28,7 @@ class AESGCMTest {
 			"a8ee11b26d7ceb7f17eaa1e4b83a2cf6, fbbc04fd6e025b7193eb57f6, '', c08f085e6a9e0ef3636280c11ecfadf0c1e72919ffc17eaf, 7cd9f4e4f365704fff3b9900aa93ba54b672bac554275650, f4eb193241226db017b32ec38ca47217",
 	})
 	public void testEncrypt(@Hex byte[] key, @Hex byte[] iv, @Hex byte[] aad, @Hex byte[] plaintext, @Hex byte[] ciphertext, @Hex byte[] tag) {
-		var alg = new AESGCM("A256GCM", 32);
+		var alg = new AESGCM("A128GCM", 16);
 
 		var result = alg.encrypt(key, iv, aad, plaintext);
 
@@ -34,7 +37,7 @@ class AESGCMTest {
 	}
 
 	// test vectors 1-10 from wycheproof: https://github.com/C2SP/wycheproof/blob/df4e933efef449fc88af0c06e028d425d84a9495/testvectors/aes_gcm_test.json
-	@DisplayName("Decrypt with A256GCM")
+	@DisplayName("Decrypt with A128GCM")
 	@ParameterizedTest
 	@CsvSource({
 			"5b9604fe14eadba931b0ccf34843dab9, 028318abc1824029138141a2, '', 001d0c231287c1182784554ca3a21908, 26073cc1d851beff176384dc9896d5ff, 0a3ea7a5487cb5f7d70fb6c58d038554",
@@ -49,11 +52,82 @@ class AESGCMTest {
 			"a8ee11b26d7ceb7f17eaa1e4b83a2cf6, fbbc04fd6e025b7193eb57f6, '', c08f085e6a9e0ef3636280c11ecfadf0c1e72919ffc17eaf, 7cd9f4e4f365704fff3b9900aa93ba54b672bac554275650, f4eb193241226db017b32ec38ca47217",
 	})
 	public void testDecrypt(@Hex byte[] key, @Hex byte[] iv, @Hex byte[] aad, @Hex byte[] plaintext, @Hex byte[] ciphertext, @Hex byte[] tag) throws JoseDecryptException {
-		var alg = new AESGCM("A256GCM", 32);
+		var alg = new AESGCM("A128GCM", 16);
 
 		var result = alg.decrypt(key, iv, aad, ciphertext, tag);
 
 		Assertions.assertArrayEquals(plaintext, result);
+	}
+
+
+	@Nested
+	@DisplayName("parameter lengths")
+	class ParameterLengths {
+
+		private static final byte[] CEK_128 = new byte[16];
+		private static final byte[] CEK_192 = new byte[24];
+		private static final byte[] CEK_256 = new byte[32];
+		private static final byte[] IV = new byte[12];
+		private static final byte[] AAD = new byte[0];
+		private static final byte[] TAG = new byte[16];
+
+		@Test
+		@DisplayName("encrypt rejects a CEK of the wrong length")
+		void testEncryptRejectsWrongCekLength() {
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Enc.A256GCM.encrypt(CEK_128, IV, AAD, new byte[0]));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Enc.A256GCM.encrypt(CEK_192, IV, AAD, new byte[0]));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Enc.A128GCM.encrypt(CEK_192, IV, AAD, new byte[0]));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Enc.A128GCM.encrypt(CEK_256, IV, AAD, new byte[0]));
+		}
+
+		@Test
+		@DisplayName("encrypt rejects an IV that is not 96 bits")
+		void testEncryptRejectsWrongIvLength() {
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Enc.A256GCM.encrypt(CEK_256, new byte[16], AAD, new byte[0]));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Enc.A256GCM.encrypt(CEK_256, new byte[0], AAD, new byte[0]));
+		}
+
+		@Test
+		@DisplayName("decrypt rejects a CEK of the wrong length before touching the ciphertext")
+		void testDecryptRejectsWrongCekLength() {
+			// a valid A128GCM encryption, relabeled as A256GCM: the JDK would happily decrypt it with the 16-byte key
+			var encrypted = Enc.A128GCM.encrypt(CEK_128, IV, AAD, "payload".getBytes());
+			Assertions.assertThrows(DecryptCiphertextException.class, () -> Enc.A256GCM.decrypt(CEK_128, IV, AAD, encrypted.ciphertext(), encrypted.tag()));
+			Assertions.assertThrows(DecryptCiphertextException.class, () -> Enc.A256GCM.decrypt(CEK_192, IV, AAD, encrypted.ciphertext(), encrypted.tag()));
+			Assertions.assertThrows(DecryptCiphertextException.class, () -> Enc.A128GCM.decrypt(CEK_256, IV, AAD, encrypted.ciphertext(), encrypted.tag()));
+		}
+
+		@Test
+		@DisplayName("decrypt rejects an IV that is not 96 bits")
+		void testDecryptRejectsWrongIvLength() {
+			Assertions.assertThrows(DecryptCiphertextException.class, () -> Enc.A256GCM.decrypt(CEK_256, new byte[16], AAD, new byte[0], TAG));
+			Assertions.assertThrows(DecryptCiphertextException.class, () -> Enc.A256GCM.decrypt(CEK_256, new byte[0], AAD, new byte[0], TAG));
+		}
+
+		@Test
+		@DisplayName("decrypt rejects a tag that is not 128 bits, even if ciphertext || tag is unchanged")
+		void testDecryptRejectsWrongTagLength() {
+			var encrypted = Enc.A256GCM.encrypt(CEK_256, IV, AAD, "payload".getBytes());
+			// move the last ciphertext byte into the tag: the concatenation is identical, so the JDK alone would accept it
+			var ct = encrypted.ciphertext();
+			var shiftedCiphertext = java.util.Arrays.copyOf(ct, ct.length - 1);
+			var shiftedTag = new byte[17];
+			shiftedTag[0] = ct[ct.length - 1];
+			System.arraycopy(encrypted.tag(), 0, shiftedTag, 1, 16);
+			Assertions.assertThrows(DecryptCiphertextException.class, () -> Enc.A256GCM.decrypt(CEK_256, IV, AAD, shiftedCiphertext, shiftedTag));
+			Assertions.assertThrows(DecryptCiphertextException.class, () -> Enc.A256GCM.decrypt(CEK_256, IV, AAD, encrypted.ciphertext(), new byte[0]));
+		}
+
+		@Test
+		@DisplayName("both encs round-trip with their exact CEK length")
+		void testExactLengthsRoundTrip() throws JoseDecryptException {
+			var plaintext = "payload".getBytes();
+			var e128 = Enc.A128GCM.encrypt(CEK_128, IV, AAD, plaintext);
+			var e256 = Enc.A256GCM.encrypt(CEK_256, IV, AAD, plaintext);
+			Assertions.assertArrayEquals(plaintext, Enc.A128GCM.decrypt(CEK_128, IV, AAD, e128.ciphertext(), e128.tag()));
+			Assertions.assertArrayEquals(plaintext, Enc.A256GCM.decrypt(CEK_256, IV, AAD, e256.ciphertext(), e256.tag()));
+		}
+
 	}
 
 }

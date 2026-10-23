@@ -118,6 +118,25 @@ class HPKEIntegratedAlgTest {
 		}
 
 		@Test
+		@DisplayName("reject more than one recipient")
+		void rejectMultipleRecipients() throws JoseParseException {
+			// draft §5: Integrated Encryption has exactly one recipient; a general JSON with the same encapsulation twice would otherwise decrypt via either entry
+			var json = JsonParser.parseString(FLATTENED_JWE).getAsJsonObject();
+			var encryptedKey = json.remove("encrypted_key");
+			var recipients = new com.google.gson.JsonArray();
+			for (int i = 0; i < 2; i++) {
+				var recipient = new JsonObject();
+				recipient.add("encrypted_key", encryptedKey);
+				recipients.add(recipient);
+			}
+			json.add("recipients", recipients);
+			var parsed = JWE.parse(json.toString());
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			Assertions.assertEquals(2, thrown.getSuppressed().length);
+			Assertions.assertTrue(thrown.getSuppressed()[0].getMessage().contains("exactly one recipient"));
+		}
+
+		@Test
 		@DisplayName("reject non-empty iv/tag")
 		void rejectNonEmptyIv() throws JoseParseException {
 			var json = JsonParser.parseString(FLATTENED_JWE).getAsJsonObject();

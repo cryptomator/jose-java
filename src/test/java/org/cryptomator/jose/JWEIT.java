@@ -1,6 +1,5 @@
 package org.cryptomator.jose;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.alg.EcdhEsAlg;
@@ -197,19 +196,13 @@ class JWEIT {
 			var xwingKeyGen = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE);
 			var keyPair = xwingKeyGen.generateKeyPair();
 
-			var json = JsonParser.parseString(JWE.build("payload").encrypt(Alg.hpke9(keyPair.getPublic())).toJsonSerialization()).getAsJsonObject();
-			// prepend a malformed recipient that trips the Integrated Encryption enc/ek guard:
-			var validRecipient = json.getAsJsonArray("recipients").get(0).getAsJsonObject();
-			var malformedRecipient = validRecipient.deepCopy();
-			var injectedHeader = new JsonObject();
-			injectedHeader.addProperty("enc", "A128GCM");
-			malformedRecipient.add("header", injectedHeader);
-			var recipients = new JsonArray();
-			recipients.add(malformedRecipient);
-			recipients.add(validRecipient);
-			json.add("recipients", recipients);
+			// Key Encryption, since Integrated Encryption is limited to exactly one recipient; two recipients keep alg/ek in the per-recipient headers
+			var json = JsonParser.parseString(JWE.build("payload").encrypt(Enc.A256GCM, Alg.hpke9Ke(keyPair.getPublic()), Alg.hpke9Ke(keyPair.getPublic())).toJsonSerialization()).getAsJsonObject();
+			// corrupt the leading recipient's encapsulation so that decapsulation fails and the loop moves on:
+			var recipients = json.getAsJsonArray("recipients");
+			recipients.get(0).getAsJsonObject().getAsJsonObject("header").addProperty("ek", "AAAA");
 
-			var decrypted = JWE.parse(json.toString()).decrypt(Alg.hpke9(keyPair.getPrivate()));
+			var decrypted = JWE.parse(json.toString()).decrypt(Alg.hpke9Ke(keyPair.getPrivate()));
 			Assertions.assertEquals("payload", decrypted.payload());
 		}
 

@@ -69,4 +69,29 @@ class XwingKEMSpiTest {
 		Assertions.assertArrayEquals(expectedSs, encapsulated.key().getEncoded());
 	}
 
+	@Test
+	@DisplayName("Decapsulation of a small-order X25519 ciphertext fails as a DecapsulateException")
+	public void testDecapsulateRejectsSmallOrderCtX() throws InvalidKeyException {
+		var keyPair = kpGen.generateKeyPair();
+		var encapsulation = kem.newEncapsulator(keyPair.getPublic()).encapsulate().encapsulation();
+		java.util.Arrays.fill(encapsulation, 1088, 1120, (byte) 0x00); // ct_X = 0, the identity point
+		var dec = kem.newDecapsulator(keyPair.getPrivate());
+
+		Assertions.assertThrows(DecapsulateException.class, () -> dec.decapsulate(encapsulation));
+	}
+
+	@Test
+	@DisplayName("Decapsulation rejects encapsulations that are not exactly 1120 bytes")
+	public void testDecapsulateRejectsWrongLength() throws InvalidKeyException {
+		var keyPair = kpGen.generateKeyPair();
+		var encapsulation = kem.newEncapsulator(keyPair.getPublic()).encapsulate().encapsulation();
+		var dec = kem.newDecapsulator(keyPair.getPrivate());
+
+		var tooLong = java.util.Arrays.copyOf(encapsulation, encapsulation.length + 1);
+		var tooShort = java.util.Arrays.copyOf(encapsulation, encapsulation.length - 1);
+
+		Assertions.assertThrows(DecapsulateException.class, () -> dec.decapsulate(tooLong));
+		Assertions.assertThrows(DecapsulateException.class, () -> dec.decapsulate(tooShort));
+	}
+
 }

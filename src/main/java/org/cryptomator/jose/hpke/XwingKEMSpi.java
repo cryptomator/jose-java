@@ -107,7 +107,7 @@ public class XwingKEMSpi implements KEMSpi {
 
 		@Override
 		public SecretKey engineDecapsulate(byte[] encapsulation, int from, int to, String algorithm) throws DecapsulateException {
-			if (encapsulation.length < 1088 + 32) {
+			if (encapsulation.length != 1088 + 32) { // reject trailing bytes too: otherwise one ciphertext would have unboundedly many valid encodings
 				throw new DecapsulateException("Invalid encapsulation length");
 			}
 
@@ -144,6 +144,9 @@ public class XwingKEMSpi implements KEMSpi {
 			byte[] ssX;
 			try {
 				ssX = X25519.dh(skX, X25519.publicKey(ctX));
+			} catch (IllegalArgumentException e) {
+				// the JDK refuses small-order points, where the X-Wing spec would carry on with an all-zero ss_X and fail at the AEAD; surface it like any other bad ciphertext
+				throw new DecapsulateException("Invalid X25519 ciphertext", e);
 			} finally {
 				Destroyables.destroyQuietly(skX);
 			}

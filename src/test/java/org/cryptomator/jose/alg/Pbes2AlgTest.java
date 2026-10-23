@@ -92,6 +92,13 @@ class Pbes2AlgTest {
 	}
 
 	@Test
+	@DisplayName("a null password is rejected instead of being treated as the empty password")
+	void testNullPassword() {
+		Assertions.assertThrows(NullPointerException.class, () -> Alg.pbes2(null));
+		Assertions.assertThrows(NullPointerException.class, () -> Alg.pbes2(null, 1000));
+	}
+
+	@Test
 	@DisplayName("a malformed PBES2 recipient is skipped in favor of a later valid one")
 	void testMalformedRecipientIsSkipped() throws JoseException {
 		var alg = Alg.pbes2("secret".toCharArray(), 1000);

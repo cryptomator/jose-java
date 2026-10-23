@@ -88,6 +88,18 @@ class JWSTest {
 	}
 
 	@Test
+	@DisplayName("verify tries every provided algorithm whose name matches (key rotation)")
+	void testKeyRotation() throws JoseException {
+		var oldKey = new SecretKeySpec(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}, "HmacSHA256");
+		var unrelatedKey = new SecretKeySpec(new byte[32], "HmacSHA256");
+		var token = JWS.build("p").sign(MacAlg.hs256(oldKey));
+
+		Assertions.assertEquals("p", JWS.parse(token).verify(MacAlg.hs256(KEY), MacAlg.hs256(oldKey)).payload());
+		var thrown = Assertions.assertThrows(JoseVerifyException.class, () -> JWS.parse(token).verify(MacAlg.hs256(KEY), MacAlg.hs256(unrelatedKey)));
+		Assertions.assertEquals("Invalid signature", thrown.getMessage());
+	}
+
+	@Test
 	@DisplayName("keys shorter than the hash output are rejected")
 	void testShortKey() {
 		Assertions.assertThrows(IllegalArgumentException.class, () -> MacAlg.hs256(new SecretKeySpec(new byte[31], "HmacSHA256")));

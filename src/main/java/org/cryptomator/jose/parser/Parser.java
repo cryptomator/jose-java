@@ -27,6 +27,7 @@ public class Parser {
 	/// @return The parsed, not yet decrypted JWE
 	/// @throws JoseParseException if the token is malformed, violates the JOSE Header rules, or lists a critical extension that is not understood
 	public static ParsedJWE parse(String token, Set<String> understoodCrit) throws JoseParseException {
+		token = token.strip(); // whitespace around a JSON object is valid JSON text (e.g. a pretty-printed file); the compact form contains none anyway
 		if (token.startsWith("{")) {
 			JsonObject json;
 			try {
