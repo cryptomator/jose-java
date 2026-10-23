@@ -46,16 +46,21 @@ var decrypted = JWE.parse(encrypted).decrypt(Alg.hpke9Ke(receiverPrivateKey));
 
 ### Multiple recipients
 
-Key Encryption allows multiple recipients with different algorithms sharing one content encryption key:
+Key Encryption allows multiple recipients with different algorithms sharing one content encryption key. Since every recipient unwraps the same key, the JWE is only as strong as its weakest recipient (here: the password).
 
 ```java
 // encrypt with multiple recipients:
-var encrypted = JWE.build("payload")
-        .encrypt(Enc.A256GCM, Alg.pbes2("password".toCharArray()), Alg.hpke9Ke(receiverPublicKey2))
-        .toJsonSerialization();
+char[] password = ...; // stays owned by the caller: the library never copies or wipes it
+try {
+    var encrypted = JWE.build("payload")
+            .encrypt(Enc.A256GCM, Alg.pbes2(password), Alg.hpke9Ke(receiverPublicKey2))
+            .toJsonSerialization();
+} finally {
+    Arrays.fill(password, '\0');
+}
 
 // decrypt as recipient 1 (PBES2):
-var decrypted1 = JWE.parse(encrypted).decrypt(Alg.pbes2("password".toCharArray()));
+var decrypted1 = JWE.parse(encrypted).decrypt(Alg.pbes2(password));
 
 // decrypt as recipient 2 (HPKE-9-KE):
 var decrypted2 = JWE.parse(encrypted).decrypt(Alg.hpke9Ke(receiverPrivateKey2));

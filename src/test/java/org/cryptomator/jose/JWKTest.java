@@ -48,4 +48,14 @@ class JWKTest {
 	void testNonStringKty() {
 		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\":{}}"));
 	}
+
+	@Test
+	@DisplayName("non-string or non-base64url EC members are rejected with a checked exception")
+	void testMalformedEcMembers() {
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\":\"EC\",\"crv\":{},\"x\":\"AA\",\"y\":\"AA\"}"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\":\"EC\",\"crv\":null,\"x\":\"AA\",\"y\":\"AA\"}"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":1,\"y\":\"AA\"}"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"!!\",\"y\":\"AA\"}"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\":\"EC\",\"crv\":\"P-256\",\"d\":[]}"));
+	}
 }

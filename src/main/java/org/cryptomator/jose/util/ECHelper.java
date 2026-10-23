@@ -94,14 +94,20 @@ public class ECHelper {
 		return result;
 	}
 
+	// a required string member, decoded as base64url
+	private static byte[] decodeBase64url(JsonObject jwk, String key) throws JoseParseException {
+		try {
+			return Base64.getUrlDecoder().decode(JsonHelper.requireString(jwk, key));
+		} catch (IllegalArgumentException e) {
+			throw new JoseParseException("EC JWK member '" + key + "' is not base64url", e);
+		}
+	}
+
 	public static AsymmetricKey fromJwk(JsonObject jwk) throws JoseParseException {
-		if (!jwk.has("kty") || !jwk.get("kty").getAsString().equals(EC_ALG)) {
+		if (!JsonHelper.requireString(jwk, "kty").equals(EC_ALG)) {
 			throw new JoseParseException("Not an EC key");
 		}
-		if (!jwk.has("crv")) {
-			throw new JoseParseException("EC JWK must contain 'crv', 'x', 'y'");
-		}
-		String crv = jwk.get("crv").getAsString();
+		String crv = JsonHelper.requireString(jwk, "crv");
 		Curve curve = switch (crv) {
 			case "P-256" -> Curve.P256;
 			case "P-384" -> Curve.P384;
@@ -111,12 +117,12 @@ public class ECHelper {
 
 		KeySpec keySpec;
 		if (jwk.has("d")) {
-			var s = new BigInteger(1, Base64.getUrlDecoder().decode(jwk.get("d").getAsString()));
+			var s = new BigInteger(1, decodeBase64url(jwk, "d"));
 			keySpec = new ECPrivateKeySpec(s, curve.getCurveParams());
 		} else if (jwk.has("x") && jwk.has("y")) {
 			var point = new ECPoint(
-					new BigInteger(1, Base64.getUrlDecoder().decode(jwk.get("x").getAsString())),
-					new BigInteger(1, Base64.getUrlDecoder().decode(jwk.get("y").getAsString()))
+					new BigInteger(1, decodeBase64url(jwk, "x")),
+					new BigInteger(1, decodeBase64url(jwk, "y"))
 			);
 			validateKey(point, curve.getCurveParams());
 			keySpec = new ECPublicKeySpec(point, curve.getCurveParams());

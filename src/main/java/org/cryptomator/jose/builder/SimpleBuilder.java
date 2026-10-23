@@ -10,14 +10,31 @@ import java.util.Arrays;
 
 public record SimpleBuilder(String payload, JsonObject protectedHeader) implements Builder {
 
+	@Override
+	public String toString() {
+		return "SimpleBuilder[payload=<redacted>, protectedHeader=" + protectedHeader + "]"; // keep the plaintext out of logs and debugger views
+	}
+
+	/// Sets the JWE Protected Header. "Protected" means integrity-protected: its parameters are authenticated but transmitted in cleartext, so they must not contain secrets.
+	///
+	/// @param protectedHeader Header parameters replacing the current ones (`alg` and `enc` are added when encrypting)
+	/// @return A copy of this builder with the given protected header
 	public SimpleBuilder withProtectedHeader(JsonObject protectedHeader) {
 		return new SimpleBuilder(payload, protectedHeader);
 	}
 
+	/// Sets the JWE Shared Unprotected Header, whose parameters are neither encrypted nor integrity-protected. Only available in the JSON serializations.
+	///
+	/// @param unprotectedHeader Header parameters replacing the current ones
+	/// @return A builder for the JSON serializations with the given shared unprotected header
 	public ComplexBuilder withUnprotectedHeader(JsonObject unprotectedHeader) {
 		return new ComplexBuilder(payload, protectedHeader, unprotectedHeader, "");
 	}
 
+	/// Sets the JWE AAD, which is integrity-protected but transmitted in cleartext. Only available in the JSON serializations.
+	///
+	/// @param aad The additional authenticated data as base64url string
+	/// @return A builder for the JSON serializations with the given AAD
 	public ComplexBuilder withAad(String aad) {
 		return new ComplexBuilder(payload, protectedHeader, new JsonObject(), aad);
 	}

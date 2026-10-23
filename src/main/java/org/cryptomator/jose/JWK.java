@@ -5,6 +5,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.hpke.XwingProvider;
 import org.cryptomator.jose.util.ECHelper;
+import org.cryptomator.jose.util.JsonHelper;
 
 import java.security.Key;
 import java.security.KeyFactory;
@@ -34,7 +35,7 @@ public interface JWK {
 		if (json == null) {
 			throw new JoseParseException("JWK JSON must be an object");
 		}
-		String kty = requireString(json, "kty");
+		String kty = JsonHelper.requireString(json, "kty");
 		// see https://www.iana.org/assignments/jose/jose.xhtml#web-key-types
 		return switch (kty) {
 			case "EC" -> ECHelper.fromJwk(json);
@@ -48,16 +49,16 @@ public interface JWK {
 	/// identifies the key's algorithm. `pub`/`priv` contain the KEM's `SerializePublicKey()`/`SerializePrivateKey()` output (for X-Wing: the raw 1216-byte
 	/// public key and the 32-byte seed). Returns the private key if `priv` is present, the public key otherwise.
 	private static Key akpFromJwk(JsonObject json) throws JoseParseException {
-		var alg = requireString(json, "alg");
+		var alg = JsonHelper.requireString(json, "alg");
 		if (!alg.equals("HPKE-9") && !alg.equals("HPKE-9-KE")) { // both "HPKE-9" and "HPKE-9-KE" use the MLKEM768-X25519 (X-Wing) KEM
 			throw new JoseParseException("Unsupported AKP algorithm: " + alg);
 		}
 		try {
 			var kf = KeyFactory.getInstance("X-Wing", XwingProvider.INSTANCE);
 			if (json.has("priv")) {
-				return kf.generatePrivate(rawKeySpec(requireString(json, "priv")));
+				return kf.generatePrivate(rawKeySpec(JsonHelper.requireString(json, "priv")));
 			} else if (json.has("pub")) {
-				return kf.generatePublic(rawKeySpec(requireString(json, "pub")));
+				return kf.generatePublic(rawKeySpec(JsonHelper.requireString(json, "pub")));
 			} else {
 				throw new JoseParseException("AKP JWK must contain 'pub' or 'priv' field");
 			}
@@ -66,15 +67,6 @@ public interface JWK {
 		} catch (IllegalArgumentException | InvalidKeySpecException e) {
 			throw new JoseParseException("Invalid AKP key material", e);
 		}
-	}
-
-	/// Returns the value of the given member, requiring it to be present and a JSON string.
-	private static String requireString(JsonObject json, String key) throws JoseParseException {
-		var element = json.get(key);
-		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
-			throw new JoseParseException("JWK JSON must contain a string '" + key + "' field");
-		}
-		return element.getAsString();
 	}
 
 	private static EncodedKeySpec rawKeySpec(String base64url) {

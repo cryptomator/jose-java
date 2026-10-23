@@ -110,6 +110,23 @@ class ParsedJWETest {
 	}
 
 	@Test
+	@DisplayName("a non-string epk member fails with a checked exception")
+	void testNonStringEpkMember() throws NoSuchAlgorithmException {
+		var keyPair = KeyPairGenerator.getInstance("EC").generateKeyPair();
+		// Gson's getAsString() would throw UnsupportedOperationException for the object-valued crv, which the decrypt loop does not catch
+		var malformed = malformed("{\"alg\":\"ECDH-ES+A256KW\",\"enc\":\"A256GCM\",\"epk\":{\"kty\":\"EC\",\"crv\":{},\"x\":\"AA\",\"y\":\"AA\"}}");
+		Assertions.assertThrows(JoseDecryptException.class, () -> malformed.decrypt(Alg.ecdhEs(keyPair.getPrivate())));
+	}
+
+	@Test
+	@DisplayName("toString does not reveal the payload")
+	void testToStringRedactsPayload() throws JoseDecryptException {
+		var decrypted = valid.decrypt(Alg.pbes2(PASSWORD));
+		Assertions.assertTrue(decrypted.toString().contains("payload=<redacted>"));
+		Assertions.assertFalse(decrypted.toString().contains("payload=payload"));
+	}
+
+	@Test
 	@DisplayName("a non-string ek fails with a checked exception")
 	void testNonStringEk() throws NoSuchAlgorithmException {
 		// ek is checked before decapsulation, so any private key of the right type works

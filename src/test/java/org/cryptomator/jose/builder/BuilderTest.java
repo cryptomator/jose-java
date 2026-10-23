@@ -36,6 +36,14 @@ class BuilderTest {
 		return json(new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8));
 	}
 
+	@Test
+	@DisplayName("builders' toString does not reveal the payload")
+	void testToStringRedactsPayload() {
+		var simple = JWE.build("payload");
+		Assertions.assertTrue(simple.toString().contains("payload=<redacted>"));
+		Assertions.assertTrue(simple.withAad("YWFk").toString().contains("payload=<redacted>"));
+	}
+
 	@Nested
 	@DisplayName("per-recipient header placement")
 	class Placement {

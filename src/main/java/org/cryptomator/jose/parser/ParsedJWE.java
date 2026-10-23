@@ -28,6 +28,9 @@ import java.util.Optional;
 public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, JsonArray recipients, String iv,
 						String ciphertext, String tag, String aad) {
 
+	/// The decoded JWE Protected Header. Like every header accessor on this class it is NOT authenticated until [#decrypt] succeeds, so use it to pick keys, not to make trust decisions.
+	///
+	/// @return The protected header, empty if absent
 	public JsonObject parsedProtectedHeader() {
 		if (protectedHeader.isEmpty()) {
 			return new JsonObject();

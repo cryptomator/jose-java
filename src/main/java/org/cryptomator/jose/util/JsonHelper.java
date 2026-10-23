@@ -1,6 +1,7 @@
 package org.cryptomator.jose.util;
 
 import com.google.gson.JsonObject;
+import org.cryptomator.jose.JoseParseException;
 
 public class JsonHelper {
 
@@ -32,6 +33,20 @@ public class JsonHelper {
 			throw new IllegalArgumentException("Duplicate header parameter: " + duplicateKey.get());
 		}
 		return union(a, b);
+	}
+
+	/// Returns the value of the given member, requiring it to be present and a JSON string (Gson's `getAsString()` would throw unchecked exceptions for objects, arrays and null).
+	///
+	/// @param json The object to read from
+	/// @param key The member name
+	/// @return The member's string value
+	/// @throws JoseParseException if the member is missing or not a JSON string
+	public static String requireString(JsonObject json, String key) throws JoseParseException {
+		var element = json.get(key);
+		if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+			throw new JoseParseException("JSON must contain a string '" + key + "' member");
+		}
+		return element.getAsString();
 	}
 
 }
