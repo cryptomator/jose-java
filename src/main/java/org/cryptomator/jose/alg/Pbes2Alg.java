@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.SymmetricKeyAlg;
+import org.cryptomator.jose.util.Base64Url;
 import org.cryptomator.jose.util.CryptoHelper;
 import org.cryptomator.jose.util.Destroyables;
 
@@ -117,7 +118,7 @@ public final class Pbes2Alg extends AbstractKeyAlg implements SymmetricKeyAlg {
 		}
 		final byte[] p2s;
 		try {
-			p2s = Base64.getUrlDecoder().decode(p2sHeader.getAsString());
+			p2s = Base64Url.decode(p2sHeader.getAsString());
 		} catch (IllegalArgumentException e) {
 			throw new DecryptKeyException("p2s header is not base64url", e);
 		}

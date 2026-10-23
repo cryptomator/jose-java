@@ -44,6 +44,14 @@ class JWKTest {
 	}
 
 	@Test
+	@DisplayName("lenient JSON is rejected")
+	void testStrictJson() {
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{kty: \"EC\"}"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\": \"EC\"} // comment"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("[]"));
+	}
+
+	@Test
 	@DisplayName("a non-string kty is rejected")
 	void testNonStringKty() {
 		Assertions.assertThrows(JoseParseException.class, () -> JWK.parse("{\"kty\":{}}"));

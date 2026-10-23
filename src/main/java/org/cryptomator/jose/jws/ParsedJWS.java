@@ -1,14 +1,15 @@
 package org.cryptomator.jose.jws;
 
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.JoseVerifyException;
 import org.cryptomator.jose.MacAlg;
 import org.cryptomator.jose.util.Ascii;
+import org.cryptomator.jose.util.Base64Url;
+import org.cryptomator.jose.util.JsonHelper;
+import org.cryptomator.jose.util.Utf8;
 
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.util.Base64;
 
 /// A parsed, not yet verified JWS in compact serialization. Instances produced by [JWSParser] have passed the JOSE Header checks (incl. `crit`).
 ///
@@ -17,16 +18,23 @@ import java.util.Base64;
 /// @param signature BASE64URL(JWS Signature)
 public record ParsedJWS(String protectedHeader, String payload, String signature) {
 
+	/// The decoded JWS Protected Header. NOT authenticated until [#verify] succeeds.
+	///
+	/// @return The protected header
+	/// @throws IllegalArgumentException if the segment is not base64url, UTF-8 and a JSON object (cannot happen for instances produced by [JWSParser])
 	public JsonObject parsedProtectedHeader() {
-		var decoded = new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
-		return JsonParser.parseString(decoded).getAsJsonObject();
+		try {
+			return JsonHelper.parseObject(Utf8.strictString(Base64Url.decode(protectedHeader)));
+		} catch (JoseParseException e) {
+			throw new IllegalArgumentException("Malformed protected header", e);
+		}
 	}
 
 	/// The payload before verification, for inspection only. Trust its content only after [#verify] succeeded.
 	///
 	/// @return The decoded, unverified payload
 	public String unverifiedPayload() {
-		return new String(Base64.getUrlDecoder().decode(payload), StandardCharsets.UTF_8);
+		return Utf8.strictString(Base64Url.decode(payload));
 	}
 
 	/// Verifies the signature with the provided algorithms whose name matches the `alg` header, e.g. several HS256 instances during key rotation.
@@ -40,7 +48,7 @@ public record ParsedJWS(String protectedHeader, String payload, String signature
 		var header = parsedProtectedHeader();
 		var algValue = header.get("alg").getAsString();
 		var signingInput = Ascii.strictBytes(protectedHeader + "." + payload);
-		var expected = Base64.getUrlDecoder().decode(signature);
+		var expected = Base64Url.decode(signature);
 		var algMatched = false;
 		for (var alg : algs) {
 			if (!algValue.equals(alg.name())) {

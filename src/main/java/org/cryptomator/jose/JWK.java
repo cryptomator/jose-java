@@ -1,9 +1,8 @@
 package org.cryptomator.jose;
 
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import org.cryptomator.jose.hpke.XwingProvider;
+import org.cryptomator.jose.util.Base64Url;
 import org.cryptomator.jose.util.ECHelper;
 import org.cryptomator.jose.util.JsonHelper;
 
@@ -12,7 +11,6 @@ import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.InvalidKeySpecException;
-import java.util.Base64;
 
 /// JSON Web Key (JWK) Utility, see [RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517),
 /// [IANA JWK Types](https://www.iana.org/assignments/jose/jose.xhtml#web-key-types),
@@ -20,15 +18,7 @@ import java.util.Base64;
 public interface JWK {
 
 	static Key parse(String json) throws JoseParseException {
-		try {
-			var jsonObj = JsonParser.parseString(json);
-			if (!jsonObj.isJsonObject()) {
-				throw new JoseParseException("JWK JSON must be an object");
-			}
-			return parse(jsonObj.getAsJsonObject());
-		} catch (JsonParseException e) {
-			throw new JoseParseException("Failed to parse JWK JSON", e);
-		}
+		return parse(JsonHelper.parseObject(json));
 	}
 
 	static Key parse(JsonObject json) throws JoseParseException {
@@ -70,7 +60,7 @@ public interface JWK {
 	}
 
 	private static EncodedKeySpec rawKeySpec(String base64url) {
-		return new EncodedKeySpec(Base64.getUrlDecoder().decode(base64url)) {
+		return new EncodedKeySpec(Base64Url.decode(base64url)) {
 			@Override
 			public String getFormat() {
 				return "RAW";

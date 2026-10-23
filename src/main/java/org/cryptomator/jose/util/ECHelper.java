@@ -97,7 +97,7 @@ public class ECHelper {
 	// a required string member, decoded as base64url
 	private static byte[] decodeBase64url(JsonObject jwk, String key) throws JoseParseException {
 		try {
-			return Base64.getUrlDecoder().decode(JsonHelper.requireString(jwk, key));
+			return Base64Url.decode(JsonHelper.requireString(jwk, key));
 		} catch (IllegalArgumentException e) {
 			throw new JoseParseException("EC JWK member '" + key + "' is not base64url", e);
 		}

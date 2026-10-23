@@ -1,9 +1,10 @@
 package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
-import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.hpke.HPKE;
+import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.util.ArrayUtil;
+import org.cryptomator.jose.util.Base64Url;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.DecapsulateException;
@@ -60,7 +61,7 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 		}
 		byte[] enc;
 		try {
-			enc = Base64.getUrlDecoder().decode(ekHeader.getAsString());
+			enc = Base64Url.decode(ekHeader.getAsString());
 		} catch (IllegalArgumentException e) {
 			throw new JoseDecryptException("Invalid base64 encoding", e);
 		}

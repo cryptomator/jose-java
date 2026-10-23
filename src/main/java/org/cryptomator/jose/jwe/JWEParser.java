@@ -3,14 +3,12 @@ package org.cryptomator.jose.jwe;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import org.cryptomator.jose.JoseParseException;
+import org.cryptomator.jose.util.Base64Url;
 import org.cryptomator.jose.util.CriticalHeaderPolicy;
 import org.cryptomator.jose.util.JsonHelper;
+import org.cryptomator.jose.util.Utf8;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -31,8 +29,8 @@ public class JWEParser {
 		if (token.startsWith("{")) {
 			JsonObject json;
 			try {
-				json = JsonParser.parseString(token).getAsJsonObject();
-			} catch (JsonParseException | IllegalStateException e) {
+				json = JsonHelper.parseObject(token);
+			} catch (JoseParseException e) {
 				throw new JoseParseException("Invalid JSON format", e);
 			}
 			if (json.has("recipients")) {
@@ -156,10 +154,9 @@ public class JWEParser {
 			return new JsonObject();
 		}
 		try {
-			var decoded = new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
-			return JsonParser.parseString(decoded).getAsJsonObject();
-		} catch (IllegalArgumentException | IllegalStateException | JsonParseException e) {
-			// IllegalArgumentException: invalid base64url; IllegalStateException: valid JSON but not an object; JsonParseException: invalid JSON
+			return JsonHelper.parseObject(Utf8.strictString(Base64Url.decode(protectedHeader))); // strict on all three layers, see RFC 7516 Section 5.2 step 3
+		} catch (IllegalArgumentException | JoseParseException e) {
+			// IllegalArgumentException: invalid base64url or UTF-8; JoseParseException: invalid or non-object JSON
 			throw new JoseParseException("Invalid protected header", e);
 		}
 	}

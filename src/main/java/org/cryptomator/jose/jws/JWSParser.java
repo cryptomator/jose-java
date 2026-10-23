@@ -1,13 +1,11 @@
 package org.cryptomator.jose.jws;
 
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 import org.cryptomator.jose.JoseParseException;
+import org.cryptomator.jose.util.Base64Url;
 import org.cryptomator.jose.util.CriticalHeaderPolicy;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import org.cryptomator.jose.util.JsonHelper;
+import org.cryptomator.jose.util.Utf8;
 
 /// Parses a JWS in compact serialization ([RFC 7515, Section 7.1](https://www.rfc-editor.org/rfc/rfc7515#section-7.1)) into a [ParsedJWS].
 /// Structural checks happen here (segments, JOSE Header rules incl. `crit`); the signature is checked on verification.
@@ -35,8 +33,8 @@ public final class JWSParser {
 		try {
 			var crit = CriticalHeaderPolicy.validate(header, understoodCrit);
 			CriticalHeaderPolicy.ensurePresent(crit, header);
-			Base64.getUrlDecoder().decode(parts[1]);
-			Base64.getUrlDecoder().decode(parts[2]);
+			Base64Url.decode(parts[1]);
+			Base64Url.decode(parts[2]);
 		} catch (IllegalArgumentException e) {
 			throw new JoseParseException(e.getMessage(), e);
 		}
@@ -45,10 +43,9 @@ public final class JWSParser {
 
 	private static JsonObject decodeProtectedHeader(String protectedHeader) throws JoseParseException {
 		try {
-			var decoded = new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
-			return JsonParser.parseString(decoded).getAsJsonObject();
-		} catch (IllegalArgumentException | IllegalStateException | JsonParseException e) {
-			// IllegalArgumentException: invalid base64url; IllegalStateException: valid JSON but not an object; JsonParseException: invalid JSON
+			return JsonHelper.parseObject(Utf8.strictString(Base64Url.decode(protectedHeader))); // strict on all three layers, see RFC 7515 Section 5.2 step 3
+		} catch (IllegalArgumentException | JoseParseException e) {
+			// IllegalArgumentException: invalid base64url or UTF-8; JoseParseException: invalid or non-object JSON
 			throw new JoseParseException("Invalid protected header", e);
 		}
 	}

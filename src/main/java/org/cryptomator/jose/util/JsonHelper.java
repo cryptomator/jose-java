@@ -1,7 +1,15 @@
 package org.cryptomator.jose.util;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import com.google.gson.Strictness;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 import org.cryptomator.jose.JoseParseException;
+
+import java.io.IOException;
+import java.io.StringReader;
 
 public class JsonHelper {
 
@@ -33,6 +41,29 @@ public class JsonHelper {
 			throw new IllegalArgumentException("Duplicate header parameter: " + duplicateKey.get());
 		}
 		return union(a, b);
+	}
+
+	/// Parses a JSON text that must be exactly one JSON object, in strict mode ([RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)): no comments, unquoted names, single quotes or trailing content,
+	/// all of which Gson's default lenient parsing would accept although conforming JOSE implementations reject them.
+	///
+	/// @param json The JSON text
+	/// @return The parsed object
+	/// @throws JoseParseException if the text is not valid strict JSON or not an object
+	public static JsonObject parseObject(String json) throws JoseParseException {
+		try {
+			var reader = new JsonReader(new StringReader(json));
+			reader.setStrictness(Strictness.STRICT);
+			var element = JsonParser.parseReader(reader);
+			if (reader.peek() != JsonToken.END_DOCUMENT) {
+				throw new JoseParseException("Unexpected content after JSON object");
+			}
+			if (!element.isJsonObject()) {
+				throw new JoseParseException("JSON must be an object");
+			}
+			return element.getAsJsonObject();
+		} catch (JsonParseException | IOException e) { // JsonParser wraps MalformedJsonException; peek() declares IOException
+			throw new JoseParseException("Invalid JSON", e);
+		}
 	}
 
 	/// Returns the value of the given member, requiring it to be present and a JSON string (Gson's `getAsString()` would throw unchecked exceptions for objects, arrays and null).

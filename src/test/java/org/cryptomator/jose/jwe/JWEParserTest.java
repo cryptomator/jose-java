@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.JWE;
+import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.JoseException;
 import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.hpke.XwingProvider;
@@ -117,6 +118,44 @@ class JWEParserTest {
 			JsonParser.parseString(patch).getAsJsonObject().entrySet().forEach(e -> json.add(e.getKey(), e.getValue()));
 			Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(json.toString()), patch);
 		}
+	}
+
+	@Test
+	@DisplayName("lenient JSON is rejected: comments, single quotes, unquoted names, trailing content")
+	void testStrictJson() {
+		var jwe = validJwe().toString();
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe + " // comment"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe + " {}"));
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe.replaceFirst("\"ciphertext\"", "ciphertext")));
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe.replaceFirst("\"ciphertext\"", "'ciphertext'")));
+	}
+
+	@Test
+	@DisplayName("a protected header that is not strict JSON, not UTF-8, or not canonical base64url is rejected")
+	void testStrictProtectedHeader() {
+		var jwe = validJwe();
+		var encoder = Base64.getUrlEncoder().withoutPadding();
+		var header = new String(Base64.getUrlDecoder().decode(jwe.get("protected").getAsString()), StandardCharsets.UTF_8);
+
+		jwe.addProperty("protected", encoder.encodeToString((header + " /* x */").getBytes(StandardCharsets.UTF_8)));
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe.toString()), "comment");
+		jwe.addProperty("protected", encoder.encodeToString(header.replaceFirst("\"enc\"", "enc").getBytes(StandardCharsets.UTF_8)));
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe.toString()), "unquoted name");
+		jwe.addProperty("protected", encoder.encodeToString(new byte[]{'{', (byte) 0xFF, '}'}));
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe.toString()), "invalid UTF-8");
+		jwe.addProperty("protected", encoder.encodeToString(header.getBytes(StandardCharsets.UTF_8)) + "=");
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe.toString()), "padding");
+	}
+
+	@Test
+	@DisplayName("a padded compact segment is rejected")
+	void testCompactPaddingRejected() throws JoseException {
+		var compact = JWE.build("payload").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000)).toCompactSerialization();
+		var parts = compact.split("\\.");
+		Assertions.assertDoesNotThrow(() -> JWE.parse(compact));
+		var parsed = JWE.parse(parts[0] + "." + parts[1] + "." + parts[2] + "." + parts[3] + "=." + parts[4]);
+		Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(Alg.pbes2("secret".toCharArray())), "padded ciphertext is caught on decrypt");
+		Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(parts[0] + "=." + parts[1] + "." + parts[2] + "." + parts[3] + "." + parts[4]), "padded protected header is caught on parse");
 	}
 
 	@Test

@@ -3,6 +3,7 @@ package org.cryptomator.jose.alg;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.JoseParseException;
+import org.cryptomator.jose.util.Base64Url;
 import org.cryptomator.jose.util.Curve;
 import org.cryptomator.jose.util.Destroyables;
 import org.cryptomator.jose.util.ECHelper;
@@ -16,7 +17,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.ECPublicKey;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Set;
 
 public final class EcdhEsAlg extends AbstractKeyAlg {
@@ -213,7 +213,7 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 			throw new IllegalArgumentException("'" + name + "' header must be a string");
 		}
 		try {
-			return Base64.getUrlDecoder().decode(param.getAsString());
+			return Base64Url.decode(param.getAsString());
 		} catch (IllegalArgumentException e) {
 			throw new IllegalArgumentException("'" + name + "' header is not base64url", e);
 		}

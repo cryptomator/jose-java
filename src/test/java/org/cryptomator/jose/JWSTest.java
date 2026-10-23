@@ -88,6 +88,23 @@ class JWSTest {
 	}
 
 	@Test
+	@DisplayName("padded or non-canonical base64url segments are rejected on parse")
+	void testRejectsNonCanonicalSegments() {
+		var token = JWS.build("p").sign(MacAlg.hs256(KEY));
+		var parts = token.split("\\.");
+		// padding appended to the signature would otherwise yield a second token string that verifies identically
+		Assertions.assertThrows(JoseParseException.class, () -> JWS.parse(parts[0] + "." + parts[1] + "." + parts[2] + "="));
+		Assertions.assertThrows(JoseParseException.class, () -> JWS.parse(parts[0] + "=." + parts[1] + "." + parts[2]));
+		Assertions.assertThrows(JoseParseException.class, () -> JWS.parse(parts[0] + "." + parts[1] + "=." + parts[2]));
+		// a flipped unused bit in the last character decodes to the same bytes with the JDK decoder
+		var alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+		var sig = parts[2];
+		var lastChar = sig.charAt(sig.length() - 1);
+		var flipped = sig.substring(0, sig.length() - 1) + alphabet.charAt(alphabet.indexOf(lastChar) ^ 1); // lowest bit of the last sextet is an unused bit
+		Assertions.assertThrows(JoseParseException.class, () -> JWS.parse(parts[0] + "." + parts[1] + "." + flipped), "HS256 signatures are 32 bytes, so the last char carries 4 unused bits");
+	}
+
+	@Test
 	@DisplayName("verify tries every provided algorithm whose name matches (key rotation)")
 	void testKeyRotation() throws JoseException {
 		var oldKey = new SecretKeySpec(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}, "HmacSHA256");

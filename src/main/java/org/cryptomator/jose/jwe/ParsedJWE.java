@@ -2,16 +2,16 @@ package org.cryptomator.jose.jwe;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.cryptomator.jose.DecryptionAlg;
+import org.cryptomator.jose.enc.DecryptCiphertextException;
 import org.cryptomator.jose.IntegratedDecryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
-import org.cryptomator.jose.enc.DecryptCiphertextException;
+import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.util.Ascii;
+import org.cryptomator.jose.util.Base64Url;
 import org.cryptomator.jose.util.JsonHelper;
+import org.cryptomator.jose.util.Utf8;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,8 +35,11 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		if (protectedHeader.isEmpty()) {
 			return new JsonObject();
 		}
-		String decoded = new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
-		return JsonParser.parseString(decoded).getAsJsonObject();
+		try {
+			return JsonHelper.parseObject(Utf8.strictString(Base64Url.decode(protectedHeader)));
+		} catch (JoseParseException e) {
+			throw new IllegalArgumentException("Malformed protected header", e); // cannot happen for instances produced by JWEParser
+		}
 	}
 
 	/// The per-recipient unprotected headers of all recipients, in order, before any decryption attempt (e.g. to pick a key by `kid`).
@@ -68,7 +71,6 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 	}
 
 	private DecryptedJWE decrypt(Optional<String> kid, DecryptionAlg... algs) throws JoseDecryptException {
-		var base64url = Base64.getUrlDecoder();
 		var parsedProtectedHeader = parsedProtectedHeader();
 		var sharedHeader = JsonHelper.disjointUnion(parsedProtectedHeader, unprotectedHeader);
 
@@ -81,9 +83,9 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		}
 		final byte[] decodedIv, decodedCiphertext, decodedTag;
 		try {
-			decodedIv = base64url.decode(iv);
-			decodedCiphertext = base64url.decode(ciphertext);
-			decodedTag = base64url.decode(tag);
+			decodedIv = Base64Url.decode(iv);
+			decodedCiphertext = Base64Url.decode(ciphertext);
+			decodedTag = Base64Url.decode(tag);
 		} catch (IllegalArgumentException e) {
 			throw new JoseDecryptException("Malformed JWE: iv, ciphertext and tag must be base64url", e); // shared by all recipients, so not worth retrying
 		}
@@ -94,7 +96,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 			var recipientJson = recipient.getAsJsonObject();
 			final byte[] encryptedKey;
 			try {
-				encryptedKey = base64url.decode(recipientJson.get("encrypted_key").getAsString());
+				encryptedKey = Base64Url.decode(recipientJson.get("encrypted_key").getAsString());
 			} catch (IllegalArgumentException e) {
 				failure.addSuppressed(new JoseDecryptException("Malformed encrypted_key: not base64url", e));
 				continue;
@@ -126,7 +128,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 				}
 				try {
 					var payload = alg.decrypt(combinedHeader, parts);
-					return new DecryptedJWE(new String(payload, StandardCharsets.UTF_8), parsedProtectedHeader, JsonHelper.union(unprotectedHeader, perRecipientUnprotectedHeader), aad);
+					return new DecryptedJWE(payloadString(payload), parsedProtectedHeader, JsonHelper.union(unprotectedHeader, perRecipientUnprotectedHeader), aad);
 				} catch (DecryptCiphertextException e) {
 					throw e; // the key matched but the content is corrupt; other recipients share the same ciphertext and would fail identically
 				} catch (JoseDecryptException e) {
@@ -137,6 +139,15 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 			}
 		}
 		throw failure;
+	}
+
+	// the decrypted payload as text; a successfully authenticated payload that is not UTF-8 is a content error shared by all recipients
+	private static String payloadString(byte[] payload) throws DecryptCiphertextException {
+		try {
+			return Utf8.strictString(payload);
+		} catch (IllegalArgumentException e) {
+			throw new DecryptCiphertextException("Payload is not valid UTF-8", e);
+		}
 	}
 
 	// the recipients whose JOSE Header carries the given kid; exactly one is expected
