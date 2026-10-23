@@ -8,6 +8,9 @@ import java.util.Set;
 
 /// Entry point for JSON Web Signatures ([RFC 7515](https://www.rfc-editor.org/rfc/rfc7515)) in compact serialization with MAC-based algorithms.
 ///
+/// This is JWS, not JWT: [#parse] and [ParsedJWS#verify] check the signature only. The payload is opaque, so JWT claims such as `exp`, `nbf`, `aud` or `iss`
+/// ([RFC 7519, Section 7.2](https://www.rfc-editor.org/rfc/rfc7519#section-7.2)) and the `typ`/`cty` header parameters are neither interpreted nor validated; that is the caller's job.
+///
 /// {@snippet :
 ///var token = JWS.build("{\"sub\":\"alice\"}")
 ///		.withProtectedHeader(header) // e.g. typ, kid

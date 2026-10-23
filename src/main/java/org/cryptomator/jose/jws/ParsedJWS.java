@@ -31,6 +31,8 @@ public record ParsedJWS(String protectedHeader, String payload, String signature
 
 	/// Verifies the signature with the provided algorithms whose name matches the `alg` header, e.g. several HS256 instances during key rotation.
 	///
+	/// Only the signature is verified. If the payload is a JWT claims set, the caller must still validate `exp`, `nbf`, `aud`, `iss` etc. ([RFC 7519, Section 7.2](https://www.rfc-editor.org/rfc/rfc7519#section-7.2)).
+	///
 	/// @param algs The candidate MAC algorithms
 	/// @return The verified JWS
 	/// @throws JoseVerifyException if no algorithm matches the `alg` header or the signature is invalid

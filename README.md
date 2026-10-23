@@ -98,5 +98,7 @@ var verified = JWS.parse(token).verify(MacAlg.hs256(key));
 var payload = verified.payload();
 ```
 
+`verify` checks the signature only. This library implements JWS, not JWT: if the payload is a JWT claims set, validating `exp`, `nbf`, `aud`, `iss` etc. is up to the caller.
+
 ## License
 Distributed under the [MIT License](LICENSE).
