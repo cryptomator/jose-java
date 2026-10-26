@@ -14,32 +14,78 @@ import org.cryptomator.jose.util.JsonHelper;
 import org.cryptomator.jose.util.Utf8;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /// A parsed, not yet decrypted JWE in any of the three serializations, normalized to the General JSON Serialization's structure.
-/// Instances produced by [JWEParser] have passed the JOSE Header checks (incl. `crit`); instances constructed directly have not.
-///
-/// @param protectedHeader   BASE64URL(UTF8(JWE Protected Header))
-/// @param unprotectedHeader JWE Shared Unprotected Header
-/// @param recipients        JWE Per-Recipient Unprotected Header and encrypted keys
-/// @param iv                BASE64URL(JWE Initialization Vector)
-/// @param ciphertext        BASE64URL(JWE Ciphertext)
-/// @param tag               BASE64URL(JWE Authentication Tag)
-/// @param aad               BASE64URL(JWE AAD)
-public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, JsonArray recipients, String iv,
-						String ciphertext, String tag, String aad) {
+/// Instances are only created by [JWEParser] and have passed the structural and JOSE Header checks (incl. `crit`). Nothing here is authenticated until [#decrypt] succeeds.
+public final class ParsedJWE {
+
+	private final String encodedProtectedHeader;
+	private final JsonObject unprotectedHeader;
+	private final JsonArray recipients;
+	private final String iv;
+	private final String ciphertext;
+	private final String tag;
+	private final String aad;
+
+	// only JWEParser creates instances, so that every ParsedJWE has passed the structural and JOSE Header checks
+	ParsedJWE(String encodedProtectedHeader, JsonObject unprotectedHeader, JsonArray recipients, String iv, String ciphertext, String tag, String aad) {
+		this.encodedProtectedHeader = Objects.requireNonNull(encodedProtectedHeader);
+		this.unprotectedHeader = Objects.requireNonNull(unprotectedHeader);
+		this.recipients = Objects.requireNonNull(recipients);
+		this.iv = Objects.requireNonNull(iv);
+		this.ciphertext = Objects.requireNonNull(ciphertext);
+		this.tag = Objects.requireNonNull(tag);
+		this.aad = Objects.requireNonNull(aad);
+	}
+
+	/// @return BASE64URL(UTF8(JWE Protected Header)) as received, empty if absent
+	public String encodedProtectedHeader() {
+		return encodedProtectedHeader;
+	}
+
+	/// @return The JWE Shared Unprotected Header, empty if absent
+	public JsonObject unprotectedHeader() {
+		return unprotectedHeader;
+	}
+
+	/// @return The `recipients` array: per-recipient unprotected headers and encrypted keys
+	public JsonArray recipients() {
+		return recipients;
+	}
+
+	/// @return BASE64URL(JWE Initialization Vector), empty for Integrated Encryption
+	public String iv() {
+		return iv;
+	}
+
+	/// @return BASE64URL(JWE Ciphertext)
+	public String ciphertext() {
+		return ciphertext;
+	}
+
+	/// @return BASE64URL(JWE Authentication Tag), empty for Integrated Encryption
+	public String tag() {
+		return tag;
+	}
+
+	/// @return BASE64URL(JWE AAD), empty if absent
+	public String aad() {
+		return aad;
+	}
 
 	/// The decoded JWE Protected Header. Like every header accessor on this class it is NOT authenticated until [#decrypt] succeeds, so use it to pick keys, not to make trust decisions.
 	///
 	/// @return The protected header, empty if absent
 	public JsonObject parsedProtectedHeader() {
-		if (protectedHeader.isEmpty()) {
+		if (encodedProtectedHeader.isEmpty()) {
 			return new JsonObject();
 		}
 		try {
-			return JsonHelper.parseObject(Utf8.strictString(Base64Url.decode(protectedHeader)));
+			return JsonHelper.parseObject(Utf8.strictString(Base64Url.decode(encodedProtectedHeader)));
 		} catch (JoseParseException e) {
-			throw new IllegalArgumentException("Malformed protected header", e); // cannot happen for instances produced by JWEParser
+			throw new AssertionError("JWEParser has already decoded this header", e);
 		}
 	}
 
@@ -79,7 +125,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		var parsedProtectedHeader = parsedProtectedHeader();
 		var sharedHeader = JsonHelper.disjointUnion(parsedProtectedHeader, unprotectedHeader);
 
-		var combinedAad = protectedHeader + (aad.isEmpty() ? "" : "." + aad);
+		var combinedAad = encodedProtectedHeader + (aad.isEmpty() ? "" : "." + aad);
 		final byte[] combinedAadBytes;
 		try {
 			combinedAadBytes = Ascii.strictBytes(combinedAad); // the protected header and aad are base64url per RFC 7516, hence ASCII; reject anything else rather than silently substituting '?'

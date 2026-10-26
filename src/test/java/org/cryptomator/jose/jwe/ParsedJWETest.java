@@ -49,14 +49,14 @@ class ParsedJWETest {
 	@Test
 	@DisplayName("an empty iv fails with a checked exception")
 	void testEmptyIv() {
-		var malformed = new ParsedJWE(valid.protectedHeader(), valid.unprotectedHeader(), valid.recipients(), "", valid.ciphertext(), valid.tag(), valid.aad());
+		var malformed = new ParsedJWE(valid.encodedProtectedHeader(), valid.unprotectedHeader(), valid.recipients(), "", valid.ciphertext(), valid.tag(), valid.aad());
 		Assertions.assertThrows(JoseDecryptException.class, () -> malformed.decrypt(Alg.pbes2(PASSWORD)));
 	}
 
 	@Test
 	@DisplayName("an empty tag fails with a checked exception")
 	void testEmptyTag() {
-		var malformed = new ParsedJWE(valid.protectedHeader(), valid.unprotectedHeader(), valid.recipients(), valid.iv(), valid.ciphertext(), "", valid.aad());
+		var malformed = new ParsedJWE(valid.encodedProtectedHeader(), valid.unprotectedHeader(), valid.recipients(), valid.iv(), valid.ciphertext(), "", valid.aad());
 		Assertions.assertThrows(JoseDecryptException.class, () -> malformed.decrypt(Alg.pbes2(PASSWORD)));
 	}
 
@@ -79,7 +79,7 @@ class ParsedJWETest {
 	@DisplayName("non-base64url iv, ciphertext or tag fail with a checked exception")
 	void testMalformedBase64Parts() {
 		for (var field : List.of("iv", "ciphertext", "tag")) {
-			var malformed = new ParsedJWE(valid.protectedHeader(), valid.unprotectedHeader(), valid.recipients(),
+			var malformed = new ParsedJWE(valid.encodedProtectedHeader(), valid.unprotectedHeader(), valid.recipients(),
 					field.equals("iv") ? "!" : valid.iv(), field.equals("ciphertext") ? "!" : valid.ciphertext(), field.equals("tag") ? "!" : valid.tag(), valid.aad());
 			Assertions.assertThrows(JoseDecryptException.class, () -> malformed.decrypt(Alg.pbes2(PASSWORD)), field);
 		}
@@ -93,7 +93,7 @@ class ParsedJWETest {
 		var recipients = new JsonArray();
 		recipients.add(broken);
 		recipients.add(valid.recipients().get(0));
-		var withBrokenFirst = new ParsedJWE(valid.protectedHeader(), valid.unprotectedHeader(), recipients, valid.iv(), valid.ciphertext(), valid.tag(), valid.aad());
+		var withBrokenFirst = new ParsedJWE(valid.encodedProtectedHeader(), valid.unprotectedHeader(), recipients, valid.iv(), valid.ciphertext(), valid.tag(), valid.aad());
 		Assertions.assertEquals("payload", withBrokenFirst.decrypt(Alg.pbes2(PASSWORD)).payload());
 	}
 
