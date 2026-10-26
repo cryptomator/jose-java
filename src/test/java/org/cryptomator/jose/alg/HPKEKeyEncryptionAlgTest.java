@@ -48,7 +48,7 @@ class HPKEKeyEncryptionAlgTest {
 
 		@BeforeEach
 		void setup() throws JoseParseException {
-			var privateKey = (ECPrivateKey) JWK.parse(PRIVATE_JWK);
+			var privateKey = (ECPrivateKey) JWK.parsePrivate(PRIVATE_JWK).privateKey();
 			this.alg = new HPKEKeyEncryptionAlg(HPKE.hpke0(), null, privateKey);
 		}
 
@@ -129,21 +129,22 @@ class HPKEKeyEncryptionAlgTest {
 				}
 				""";
 
-		private PrivateKey privateKey;
+		private JWK.Private jwk;
 		private DecryptionAlg alg;
 
 		@BeforeEach
 		void setup() throws JoseParseException {
-			this.privateKey = (PrivateKey) JWK.parse(PRIVATE_JWK);
-			this.alg = Alg.hpke9Ke(privateKey);
+			this.jwk = JWK.parsePrivate(PRIVATE_JWK);
+			this.alg = Alg.hpke9Ke(jwk);
 		}
 
 		@Test
 		@DisplayName("encrypt with the public JWK, decrypt with the private JWK")
 		void roundTrip() throws JoseParseException, JoseDecryptException {
 			var publicJwk = JsonParser.parseString(PRIVATE_JWK).getAsJsonObject();
-			publicJwk.remove("priv"); // JWK.parse returns the public key iff "priv" is absent
-			var publicKey = (PublicKey) JWK.parse(publicJwk);
+			publicJwk.remove("priv"); // a JWK without private material parses as JWK.Public
+			var publicKey = JWK.parsePublic(publicJwk);
+			Assertions.assertEquals(jwk.toPublic(), publicKey);
 
 			var jwe = JWE.build(EXPECTED_PAYLOAD_EN_DASH).encrypt(Enc.A256GCM, Alg.hpke9Ke(publicKey)).toCompactSerialization();
 			var decrypted = JWE.parse(jwe).decrypt(alg); // succeeds only if "pub" is the public key belonging to the "priv" seed

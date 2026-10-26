@@ -4,7 +4,7 @@ import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseParseException;
 
 import java.math.BigInteger;
-import java.security.AsymmetricKey;
+import java.security.KeyPair;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPublicKey;
@@ -15,7 +15,6 @@ import java.security.spec.ECPrivateKeySpec;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.EllipticCurve;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.KeySpec;
 import java.util.Base64;
 
 public class ECHelper {
@@ -120,7 +119,12 @@ public class ECHelper {
 		return new BigInteger(1, bytes);
 	}
 
-	public static AsymmetricKey fromJwk(JsonObject jwk) throws JoseParseException {
+	/// Parses an EC JWK ([RFC 7518, Section 6.2](https://www.rfc-editor.org/rfc/rfc7518#section-6.2)) into its key pair.
+	///
+	/// @param jwk The JWK JSON object with `kty` `EC`
+	/// @return The key pair, whose private key is `null` if `d` is absent
+	/// @throws JoseParseException if a member is missing, malformed, not of the curve's fixed length, or the key is invalid
+	public static KeyPair fromJwk(JsonObject jwk) throws JoseParseException {
 		if (!JsonHelper.requireString(jwk, "kty").equals(EC_ALG)) {
 			throw new JoseParseException("Not an EC key");
 		}
@@ -132,30 +136,28 @@ public class ECHelper {
 			default -> throw new JoseParseException("Unsupported curve: " + crv);
 		};
 
-		KeySpec keySpec;
+		// RFC 7518 Section 6.2.1: x and y are required for every EC JWK, Section 6.2.2: a private key additionally carries d
+		final ECPublicKeySpec publicKeySpec;
+		final ECPrivateKeySpec privateKeySpec;
 		try {
+			var point = new ECPoint(decodeFixedLength(jwk, "x", curve), decodeFixedLength(jwk, "y", curve));
+			validateKey(point, curve.getCurveParams());
+			publicKeySpec = new ECPublicKeySpec(point, curve.getCurveParams());
 			if (jwk.has("d")) {
-				// RFC 7518 Section 6.2.2 requires x/y alongside d; they are not checked for consistency with d here
 				var s = decodeFixedLength(jwk, "d", curve);
 				validateKey(s, curve.getCurveParams());
-				keySpec = new ECPrivateKeySpec(s, curve.getCurveParams());
-			} else if (jwk.has("x") && jwk.has("y")) {
-				var point = new ECPoint(decodeFixedLength(jwk, "x", curve), decodeFixedLength(jwk, "y", curve));
-				validateKey(point, curve.getCurveParams());
-				keySpec = new ECPublicKeySpec(point, curve.getCurveParams());
+				privateKeySpec = new ECPrivateKeySpec(s, curve.getCurveParams()); // not checked for consistency with the public point
 			} else {
-				throw new JoseParseException("EC JWK must contain 'd' or 'x' and 'y'");
+				privateKeySpec = null;
 			}
 		} catch (IllegalArgumentException e) {
 			throw new JoseParseException("Invalid EC key", e);
 		}
 		try {
 			var keyFactory = KeyFactory.getInstance(EC_ALG);
-			return switch (keySpec) {
-				case ECPrivateKeySpec s -> keyFactory.generatePrivate(s);
-				case ECPublicKeySpec s -> keyFactory.generatePublic(s);
-				default -> throw new IllegalStateException("Unexpected value: " + keySpec);
-			};
+			var publicKey = keyFactory.generatePublic(publicKeySpec);
+			var privateKey = privateKeySpec == null ? null : keyFactory.generatePrivate(privateKeySpec);
+			return new KeyPair(publicKey, privateKey);
 		} catch (NoSuchAlgorithmException e) {
 			throw new UnsupportedOperationException("JVM does not support elliptic curves", e);
 		} catch (InvalidKeySpecException e) {

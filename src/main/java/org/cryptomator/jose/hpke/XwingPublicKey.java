@@ -77,6 +77,16 @@ class XwingPublicKey implements PublicKey {
 		return pk.clone();
 	}
 
+	@Override
+	public boolean equals(Object obj) {
+		return obj instanceof XwingPublicKey other && Arrays.equals(pk, other.pk);
+	}
+
+	@Override
+	public int hashCode() {
+		return Arrays.hashCode(pk);
+	}
+
 	/// returns the ML-KEM public key part (`pk_M = pk[0:1184]`)
 	/// @return a new {@link PublicKey} instance
 	public PublicKey getMLKemPublicKey() {

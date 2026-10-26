@@ -70,12 +70,11 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 		}
 		ECPublicKey epk;
 		try {
-			var key = ECHelper.fromJwk(combinedHeader.getAsJsonObject("epk"));
-			if (key instanceof ECPublicKey k) {
-				epk = k;
-			} else {
-				throw new DecryptKeyException("Ephemeral key is not an EC public key");
+			var keyPair = ECHelper.fromJwk(combinedHeader.getAsJsonObject("epk"));
+			if (keyPair.getPrivate() != null || !(keyPair.getPublic() instanceof ECPublicKey k)) {
+				throw new DecryptKeyException("epk must contain only public key values"); // RFC 7518 Section 4.6.1.1
 			}
+			epk = k;
 		} catch (JoseParseException e) {
 			throw new DecryptKeyException("Invalid 'epk'", e);
 		}

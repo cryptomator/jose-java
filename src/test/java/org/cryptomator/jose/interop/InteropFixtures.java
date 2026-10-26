@@ -98,13 +98,11 @@ final class InteropFixtures {
 	// jose-java keys:
 
 	static ECPrivateKey josePrivateKey(Curve curve) throws JoseParseException {
-		return (ECPrivateKey) JWK.parse(EC_JWKS.get(curve));
+		return (ECPrivateKey) JWK.parsePrivate(EC_JWKS.get(curve)).privateKey();
 	}
 
 	static ECPublicKey josePublicKey(Curve curve) throws JoseParseException {
-		var jwk = json(EC_JWKS.get(curve));
-		jwk.remove("d"); // JWK.parse returns the public key iff "d" is absent
-		return (ECPublicKey) JWK.parse(jwk);
+		return (ECPublicKey) JWK.parsePublic(EC_JWKS.get(curve)).publicKey(); // the private JWK's public part
 	}
 
 	static SecretKey joseKek() {

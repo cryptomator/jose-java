@@ -12,6 +12,7 @@ import java.security.KeyPairGenerator;
 import java.security.KeyPairGeneratorSpi;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.NamedParameterSpec;
 import java.util.Arrays;
 
@@ -20,14 +21,29 @@ import java.util.Arrays;
 public class XwingKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
 	private SecureRandom random;
+	private byte[] seed; // set by XwingSeedParameterSpec: derandomized generation for this seed
 
 	@Override
 	public void initialize(int keysize, SecureRandom random) {
 		this.random = random;
+		this.seed = null;
+	}
+
+	@Override
+	public void initialize(AlgorithmParameterSpec params, SecureRandom random) throws InvalidAlgorithmParameterException {
+		if (params instanceof XwingSeedParameterSpec seedSpec) {
+			this.seed = seedSpec.seed();
+			this.random = random;
+		} else {
+			throw new InvalidAlgorithmParameterException("Unsupported parameter spec: " + (params == null ? "null" : params.getClass().getName()));
+		}
 	}
 
 	@Override
 	public KeyPair generateKeyPair() {
+		if (seed != null) {
+			return generateKeyPairDerand(seed);
+		}
 		if (random == null) {
 			try {
 				random = SecureRandom.getInstanceStrong();

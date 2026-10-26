@@ -147,6 +147,20 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 		return new HPKEIntegratedAlg(HPKE.hpke9(), null, asXwingPrivateKey(privateKey));
 	}
 
+	/// Integrated Encryption with `HPKE-9` using the public key of an AKP JWK, which must be bound to `HPKE-9` by its `alg` parameter.
+	///
+	/// @throws IllegalArgumentException if the JWK's `alg` is not `HPKE-9`
+	static IntegratedEncryptionAlg hpke9(JWK.Public jwk) {
+		return hpke9(requireAlg(jwk, "HPKE-9").publicKey());
+	}
+
+	/// Integrated Encryption with `HPKE-9` using the private key of an AKP JWK, which must be bound to `HPKE-9` by its `alg` parameter.
+	///
+	/// @throws IllegalArgumentException if the JWK's `alg` is not `HPKE-9`
+	static DecryptionAlg hpke9(JWK.Private jwk) {
+		return hpke9(requireAlg(jwk, "HPKE-9").privateKey());
+	}
+
 	/// Key Encryption with `HPKE-0-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
 	static KeyEncryptionAlg hpke0Ke(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
@@ -203,6 +217,28 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Key Encryption with `HPKE-9-KE`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
 	static DecryptionAlg hpke9Ke(PrivateKey privateKey) {
 		return new HPKEKeyEncryptionAlg(HPKE.hpke9(), null, asXwingPrivateKey(privateKey));
+	}
+
+	/// Key Encryption with `HPKE-9-KE` using the public key of an AKP JWK, which must be bound to `HPKE-9-KE` by its `alg` parameter.
+	///
+	/// @throws IllegalArgumentException if the JWK's `alg` is not `HPKE-9-KE`
+	static KeyEncryptionAlg hpke9Ke(JWK.Public jwk) {
+		return hpke9Ke(requireAlg(jwk, "HPKE-9-KE").publicKey());
+	}
+
+	/// Key Encryption with `HPKE-9-KE` using the private key of an AKP JWK, which must be bound to `HPKE-9-KE` by its `alg` parameter.
+	///
+	/// @throws IllegalArgumentException if the JWK's `alg` is not `HPKE-9-KE`
+	static DecryptionAlg hpke9Ke(JWK.Private jwk) {
+		return hpke9Ke(requireAlg(jwk, "HPKE-9-KE").privateKey());
+	}
+
+	// RFC 7517 Section 4.4: alg identifies the algorithm intended for use with the key; a key published for one HPKE mode must not be used in the other
+	private static <T extends JWK> T requireAlg(T jwk, String alg) {
+		if (!alg.equals(jwk.alg().orElse(alg))) {
+			throw new IllegalArgumentException("JWK is bound to alg '" + jwk.alg().get() + "', not '" + alg + "'");
+		}
+		return jwk;
 	}
 
 	private static PublicKey asXwingPublicKey(PublicKey publicKey) {
