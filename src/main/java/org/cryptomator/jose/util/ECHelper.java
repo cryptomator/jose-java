@@ -31,6 +31,18 @@ public class ECHelper {
 		return publicKey;
 	}
 
+	/// Validates a private key scalar: it must lie in `[1, n-1]` for the curve's order `n`
+	/// ([SEC 1, Section 3.2.1](https://www.secg.org/sec1-v2.pdf); `0` would yield the point at infinity, values `>= n` alias a smaller scalar).
+	///
+	/// @param s The private scalar
+	/// @param curveParams The curve
+	/// @throws IllegalArgumentException if the scalar is out of range
+	public static void validateKey(BigInteger s, ECParameterSpec curveParams) throws IllegalArgumentException {
+		if (s.signum() <= 0 || s.compareTo(curveParams.getOrder()) >= 0) {
+			throw new IllegalArgumentException("Invalid EC private key scalar");
+		}
+	}
+
 	// validations taken from https://neilmadden.blog/2017/05/17/so-how-do-you-validate-nist-ecdh-public-keys/
 	public static void validateKey(ECPoint w, ECParameterSpec curveParams) throws IllegalArgumentException {
 		if (curveParams.getCofactor() != 1) {
@@ -94,13 +106,18 @@ public class ECHelper {
 		return result;
 	}
 
-	// a required string member, decoded as base64url
-	private static byte[] decodeBase64url(JsonObject jwk, String key) throws JoseParseException {
+	// a required coordinate/scalar member: base64url of exactly the curve's coordinate length, see RFC 7518 Section 6.2.1.2 ("MUST be the full size of a coordinate for the curve")
+	private static BigInteger decodeFixedLength(JsonObject jwk, String key, Curve curve) throws JoseParseException {
+		final byte[] bytes;
 		try {
-			return Base64Url.decode(JsonHelper.requireString(jwk, key));
+			bytes = Base64Url.decode(JsonHelper.requireString(jwk, key));
 		} catch (IllegalArgumentException e) {
 			throw new JoseParseException("EC JWK member '" + key + "' is not base64url", e);
 		}
+		if (bytes.length != curve.coordinateByteLength) {
+			throw new JoseParseException("EC JWK member '" + key + "' must be " + curve.coordinateByteLength + " bytes for " + curve.jwaCrvName + ", but was " + bytes.length);
+		}
+		return new BigInteger(1, bytes);
 	}
 
 	public static AsymmetricKey fromJwk(JsonObject jwk) throws JoseParseException {
@@ -116,18 +133,21 @@ public class ECHelper {
 		};
 
 		KeySpec keySpec;
-		if (jwk.has("d")) {
-			var s = new BigInteger(1, decodeBase64url(jwk, "d"));
-			keySpec = new ECPrivateKeySpec(s, curve.getCurveParams());
-		} else if (jwk.has("x") && jwk.has("y")) {
-			var point = new ECPoint(
-					new BigInteger(1, decodeBase64url(jwk, "x")),
-					new BigInteger(1, decodeBase64url(jwk, "y"))
-			);
-			validateKey(point, curve.getCurveParams());
-			keySpec = new ECPublicKeySpec(point, curve.getCurveParams());
-		} else {
-			throw new JoseParseException("EC JWK must contain 'd' or 'x' and 'y'");
+		try {
+			if (jwk.has("d")) {
+				// RFC 7518 Section 6.2.2 requires x/y alongside d; they are not checked for consistency with d here
+				var s = decodeFixedLength(jwk, "d", curve);
+				validateKey(s, curve.getCurveParams());
+				keySpec = new ECPrivateKeySpec(s, curve.getCurveParams());
+			} else if (jwk.has("x") && jwk.has("y")) {
+				var point = new ECPoint(decodeFixedLength(jwk, "x", curve), decodeFixedLength(jwk, "y", curve));
+				validateKey(point, curve.getCurveParams());
+				keySpec = new ECPublicKeySpec(point, curve.getCurveParams());
+			} else {
+				throw new JoseParseException("EC JWK must contain 'd' or 'x' and 'y'");
+			}
+		} catch (IllegalArgumentException e) {
+			throw new JoseParseException("Invalid EC key", e);
 		}
 		try {
 			var keyFactory = KeyFactory.getInstance(EC_ALG);
