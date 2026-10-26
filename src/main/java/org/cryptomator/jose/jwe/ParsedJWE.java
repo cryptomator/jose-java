@@ -3,6 +3,7 @@ package org.cryptomator.jose.jwe;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.DecryptionAlg;
+import org.cryptomator.jose.alg.Pbes2Alg;
 import org.cryptomator.jose.enc.DecryptCiphertextException;
 import org.cryptomator.jose.IntegratedDecryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
@@ -51,7 +52,11 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 				.toList();
 	}
 
-	/// Decrypts the JWE, attempting each recipient against each of the provided algorithms (matched by `alg`) in order.
+	/// Decrypts the JWE by trial and error, attempting each recipient against each of the provided algorithms (matched by `alg`) in order.
+	///
+	/// Every attempt costs the full key-unwrap work of its algorithm, so a hostile token can multiply that work by its recipient count. For PBES2 this is bounded: the
+	/// PBKDF2 iterations of all PBES2 recipients tried within one call are capped at [Pbes2Alg#MAX_P2C] in total, and recipients beyond that budget are skipped. Whenever
+	/// the recipient is known, prefer [#decrypt(String, DecryptionAlg)], which targets it by `kid` and does neither trial and error nor budget accounting.
 	///
 	/// @param algs The candidate decryption algorithms
 	/// @return The decrypted JWE
@@ -91,6 +96,7 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 		}
 
 		var candidates = kid.isPresent() ? recipientsWithKid(kid.get(), sharedHeader) : recipients.asList();
+		long pbkdf2Budget = Pbes2Alg.MAX_P2C; // cumulative over all PBES2 recipients tried in this call, see Pbes2Alg#MAX_P2C
 		var failure = new JoseDecryptException(kid.isPresent() ? "Recipient '" + kid.get() + "' could not be decrypted." : "No matching recipient found for decryption.");
 		for (var recipient : candidates) {
 			var recipientJson = recipient.getAsJsonObject();
@@ -125,6 +131,14 @@ public record ParsedJWE(String protectedHeader, JsonObject unprotectedHeader, Js
 					// draft-ietf-jose-hpke-encrypt §5: Integrated Encryption has exactly one recipient (HPKE encrypts the payload directly, there is no shared CEK)
 					failure.addSuppressed(new JoseDecryptException("Integrated Encryption requires exactly one recipient"));
 					continue;
+				}
+				if (alg instanceof Pbes2Alg) {
+					var iterations = Pbes2Alg.declaredIterations(combinedHeader);
+					if (iterations > pbkdf2Budget) {
+						failure.addSuppressed(new JoseDecryptException("Skipped PBES2 recipient: cumulative p2c would exceed " + Pbes2Alg.MAX_P2C + " (use decrypt(kid, alg) to target this recipient)"));
+						continue;
+					}
+					pbkdf2Budget -= iterations;
 				}
 				try {
 					var payload = alg.decrypt(combinedHeader, parts);

@@ -45,6 +45,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	///
 	/// @param password The password, which remains owned (and eventually wiped) by the caller
 	/// @return An algorithm instance usable for encryption and decryption
+	/// @see Pbes2Alg#MAX_P2C the cumulative PBKDF2 budget per decrypt call, and why `kid`-targeted decryption is preferable for multi-recipient tokens
 	static SymmetricKeyAlg pbes2(char[] password) {
 		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, Pbes2Alg.DEFAULT_P2C);
 	}
@@ -57,7 +58,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// @param password The password, which remains owned (and eventually wiped) by the caller
 	/// @param iterationCount The PBKDF2 iteration count used for encryption, between {@value Pbes2Alg#MIN_P2C} and {@value Pbes2Alg#MAX_P2C} (larger counts would produce tokens this library refuses to decrypt)
 	/// @return An algorithm instance usable for encryption and decryption
-	/// @throws IllegalArgumentException if the iteration count is below the minimum of {@value Pbes2Alg#MIN_P2C} recommended by [RFC 7518, Section 4.8.1.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2) or above {@value Pbes2Alg#MIN_P2C}
+	/// @throws IllegalArgumentException if the iteration count is below the minimum of {@value Pbes2Alg#MIN_P2C} recommended by [RFC 7518, Section 4.8.1.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2) or above {@value Pbes2Alg#MAX_P2C}
 	static SymmetricKeyAlg pbes2(char[] password, int iterationCount) {
 		return new Pbes2Alg(Pbes2Alg.Type.PBES2_HS512_A256KW, password, iterationCount);
 	}

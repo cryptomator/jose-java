@@ -110,6 +110,21 @@ class ParsedJWETest {
 	}
 
 	@Test
+	@DisplayName("PBKDF2 work per decrypt call is capped at MAX_P2C cumulatively; kid-targeted decryption is not affected")
+	void testCumulativePbkdf2Budget() throws JoseException {
+		// three PBES2 recipients with different passwords: trial and error must derive 500k + 500k iterations before reaching the third, which would exceed the budget
+		var jwe = JWE.build("payload").encrypt(Enc.A256GCM,
+				Recipient.withAlg(Alg.pbes2("a".toCharArray(), 500_000)).withClaim("kid", "a"),
+				Recipient.withAlg(Alg.pbes2("b".toCharArray(), 500_000)).withClaim("kid", "b"),
+				Recipient.withAlg(Alg.pbes2("c".toCharArray(), 1000)).withClaim("kid", "c")
+		).toJsonSerialization();
+
+		var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> JWE.parse(jwe).decrypt(Alg.pbes2("c".toCharArray())));
+		Assertions.assertTrue(java.util.Arrays.stream(thrown.getSuppressed()).anyMatch(e -> e.getMessage().contains("cumulative p2c")), thrown.toString());
+		Assertions.assertEquals("payload", JWE.parse(jwe).decrypt("c", Alg.pbes2("c".toCharArray())).payload());
+	}
+
+	@Test
 	@DisplayName("a non-string epk member fails with a checked exception")
 	void testNonStringEpkMember() throws NoSuchAlgorithmException {
 		var keyPair = KeyPairGenerator.getInstance("EC").generateKeyPair();

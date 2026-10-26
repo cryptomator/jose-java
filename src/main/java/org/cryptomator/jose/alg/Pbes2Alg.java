@@ -45,7 +45,13 @@ public final class Pbes2Alg extends AbstractKeyAlg implements SymmetricKeyAlg {
 	/// The minimum PBKDF2 iteration count accepted for encryption, as recommended by [RFC 7518, Section 4.8.1.2](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2).
 	public static final int MIN_P2C = 1000;
 
-	/// The maximum PBKDF2 iteration count accepted on both sides (the same cap nimbus-jose-jwt applies on decryption), so that every token produced can also be decrypted.
+	/// The maximum number of PBKDF2 iterations per operation: the cap for a single recipient's `p2c` on both sides (so
+	/// that every token produced can also be decrypted), and on decryption also the cumulative budget across all PBES2 recipients tried within one `decrypt(...)` call.
+	///
+	/// [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518#section-4.8.1.2) sets no upper bound, so this is library policy: without it, a hostile general JSON JWE could carry
+	/// thousands of PBES2 recipients and make trial-and-error decryption spend minutes of CPU before failing. Recipients that would exceed the budget are skipped (reported as
+	/// suppressed exceptions), so a legitimate token with many PBES2 recipients should be decrypted with [org.cryptomator.jose.jwe.ParsedJWE#decrypt(String, org.cryptomator.jose.DecryptionAlg)],
+	/// which targets one recipient by `kid` and therefore never hits the cumulative limit.
 	public static final int MAX_P2C = 1_000_000;
 
 	private static final int SALT_LEN = 16;
@@ -126,6 +132,19 @@ public final class Pbes2Alg extends AbstractKeyAlg implements SymmetricKeyAlg {
 			throw new DecryptKeyException("p2s must be at least " + MIN_SALT_LEN + " bytes long");
 		}
 		return p2s;
+	}
+
+	/// The PBKDF2 iteration count a recipient header asks for, used by the decrypt loop to account the cumulative [#MAX_P2C] budget before any derivation runs.
+	///
+	/// @param combinedHeader The recipient's combined JOSE Header
+	/// @return The declared `p2c`, or 0 if it is absent or malformed (the per-recipient validation reports that when the recipient is tried)
+	public static long declaredIterations(JsonObject combinedHeader) {
+		var p2c = combinedHeader.get("p2c");
+		if (p2c == null || !p2c.isJsonPrimitive() || !p2c.getAsJsonPrimitive().isNumber()) {
+			return 0;
+		}
+		var value = p2c.getAsNumber().doubleValue();
+		return value > 0 && value == Math.rint(value) ? (long) Math.min(value, Long.MAX_VALUE) : 0;
 	}
 
 	// the PBES2 Count, see RFC 7518 Section 4.8.1.2: a positive integer, capped to keep hostile tokens from consuming unbounded CPU time
