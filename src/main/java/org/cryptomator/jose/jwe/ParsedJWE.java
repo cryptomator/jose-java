@@ -178,6 +178,11 @@ public final class ParsedJWE {
 					failure.addSuppressed(new JoseDecryptException("Integrated Encryption requires exactly one recipient"));
 					continue;
 				}
+				if (alg instanceof IntegratedDecryptionAlg && combinedHeader.has("psk_id") && !parsedProtectedHeader.has("psk_id")) {
+					// draft-ietf-jose-hpke-encrypt §5: for Integrated Encryption psk_id is a protected header parameter
+					failure.addSuppressed(new JoseDecryptException("psk_id must be in the protected header for Integrated Encryption"));
+					continue;
+				}
 				if (alg instanceof Pbes2Alg) {
 					var iterations = Pbes2Alg.declaredIterations(combinedHeader);
 					if (iterations > pbkdf2Budget) {

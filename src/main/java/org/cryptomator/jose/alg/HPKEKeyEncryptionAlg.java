@@ -1,8 +1,11 @@
 package org.cryptomator.jose.alg;
 
 import com.google.gson.JsonObject;
-import org.cryptomator.jose.hpke.HPKE;
+import org.cryptomator.jose.HpkeKeyDecryptionAlg;
+import org.cryptomator.jose.HpkeKeyEncryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.Psk;
+import org.cryptomator.jose.hpke.HPKE;
 import org.cryptomator.jose.util.ArrayUtil;
 import org.cryptomator.jose.util.Base64Url;
 
@@ -11,15 +14,15 @@ import javax.crypto.DecapsulateException;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.util.Base64;
+import java.util.Objects;
 import java.util.Set;
 
 /// HPKE Key Encryption as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6):
 /// HPKE seals the CEK, the encapsulated secret travels in the `ek` header parameter, and the content is encrypted with a regular [org.cryptomator.jose.Enc].
 ///
-/// Only HPKE `mode_base` is supported. The draft also allows `mode_psk`, signalled by the `psk_id` header parameter; a token carrying `psk_id` is not understood
-/// (it is rejected when listed in `crit`, and otherwise fails to decrypt because the PSK never enters the key schedule).
-public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
+/// Runs in HPKE `mode_base`, or in `mode_psk` once a [Psk] is attached: the PSK identifier is then carried in the recipient's `psk_id` header parameter, and
+/// the mode of a recipient (`psk_id` present or not) must match the configured PSK on decryption.
+public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg implements HpkeKeyEncryptionAlg, HpkeKeyDecryptionAlg {
 
 	private static final byte[] SEPARATOR = {(byte) 0xFF};
 	private static final byte[] RECIPIENT_STRUCTURE_LABEL = "JOSE-HPKE rcpt".getBytes(StandardCharsets.US_ASCII);
@@ -28,11 +31,17 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 	private final HPKE hpke;
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
+	private final Psk psk; // null for mode_base
 
 	public HPKEKeyEncryptionAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey) {
+		this(hpke, publicKey, privateKey, null);
+	}
+
+	private HPKEKeyEncryptionAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey, Psk psk) {
 		this.hpke = hpke;
 		this.publicKey = publicKey;
 		this.privateKey = privateKey;
+		this.psk = psk;
 	}
 
 	@Override
@@ -41,17 +50,25 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 	}
 
 	@Override
+	public HPKEKeyEncryptionAlg withPsk(Psk psk) {
+		return new HPKEKeyEncryptionAlg(hpke, publicKey, privateKey, Objects.requireNonNull(psk, "psk"));
+	}
+
+	@Override
 	public Set<String> generatedHeaderParams() {
-		return Set.of("alg", "ek");
+		return psk == null ? Set.of("alg", "ek") : Set.of("alg", "ek", PskMode.PSK_ID);
 	}
 
 	@Override
 	public EncryptionResult encrypt(JsonObject combinedHeader, byte[] cek) {
-		var sender = hpke.setupBaseS(publicKey, recipientStructure(combinedHeader));
+		var sender = hpke.setupS(publicKey, recipientStructure(combinedHeader), psk);
 		try (var ctx = sender.context()) {
 			var perRecipientHeader = new JsonObject();
 			perRecipientHeader.addProperty("alg", name());
-			perRecipientHeader.addProperty("ek", Base64.getUrlEncoder().withoutPadding().encodeToString(sender.enc()));
+			perRecipientHeader.addProperty("ek", Base64Url.encode(sender.enc()));
+			if (psk != null) {
+				perRecipientHeader.addProperty(PskMode.PSK_ID, PskMode.headerValue(psk));
+			}
 			return new EncryptionResult(ctx.seal(EMPTY, cek), perRecipientHeader); // the HPKE aad parameter defaults to the empty octet sequence
 		}
 	}
@@ -68,12 +85,13 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 		} catch (IllegalArgumentException e) {
 			throw new JoseDecryptException("Invalid base64 encoding", e);
 		}
-		try (var ctx = hpke.setupBaseR(enc, privateKey, recipientStructure(combinedHeader))) {
+		PskMode.verify(combinedHeader, psk);
+		try (var ctx = hpke.setupR(enc, privateKey, recipientStructure(combinedHeader), psk)) {
 			return ctx.open(EMPTY, encryptedKey); // the HPKE aad parameter defaults to the empty octet sequence
 		} catch (DecapsulateException e) {
 			throw new DecryptKeyException("Failed to decapsulate 'ek'", e);
 		} catch (AEADBadTagException e) {
-			throw new DecryptKeyException("Failed to decrypt CEK", e);
+			throw new DecryptKeyException("Failed to decrypt CEK", e); // wrong private key, or wrong PSK in mode_psk
 		}
 	}
 

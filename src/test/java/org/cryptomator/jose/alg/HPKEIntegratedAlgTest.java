@@ -1,5 +1,15 @@
 package org.cryptomator.jose.alg;
 
+import java.security.KeyPair;
+
+import javax.crypto.spec.SecretKeySpec;
+
+import org.cryptomator.jose.util.Curve;
+
+import org.cryptomator.jose.Psk;
+
+import org.cryptomator.jose.JoseException;
+
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.Alg;
@@ -33,7 +43,7 @@ class HPKEIntegratedAlgTest {
 	@DisplayName("HPKE-0 test vectors")
 	class Hpke0 {
 
-		private static final String PRIVATE_JWK = """
+		static final String PRIVATE_JWK = """
 				{
 				  "kty": "EC",
 				  "crv": "P-256",
@@ -154,7 +164,7 @@ class HPKEIntegratedAlgTest {
 	@DisplayName("HPKE-9 test vectors")
 	class Hpke9 {
 
-		private static final String PRIVATE_JWK = """
+		static final String PRIVATE_JWK = """
 				{
 				  "kty": "AKP",
 				  "alg": "HPKE-9",
@@ -214,6 +224,71 @@ class HPKEIntegratedAlgTest {
 			var decrypted = JWE.parse(jwe).decrypt(alg);
 			Assertions.assertEquals(EXPECTED_PAYLOAD_EN_DASH, decrypted.payload());
 			Assertions.assertEquals(EXPECTED_AAD, decrypted.aad());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("mode_psk")
+	class PskMode {
+
+		private static final Psk PSK = new Psk(new SecretKeySpec(new byte[32], "Generic"), "psk-1".getBytes(StandardCharsets.UTF_8));
+		private static final Psk OTHER_KEY = new Psk(new SecretKeySpec(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}, "Generic"), "psk-1".getBytes(StandardCharsets.UTF_8));
+		private static final Psk OTHER_ID = new Psk(new SecretKeySpec(new byte[32], "Generic"), "psk-2".getBytes(StandardCharsets.UTF_8));
+
+		private KeyPair keyPair;
+
+		@BeforeEach
+		void setup() {
+			keyPair = Curve.P256.generateKeyPair();
+		}
+
+		@Test
+		@DisplayName("round-trips with a PSK and carries psk_id in the protected header")
+		void testRoundTrip() throws JoseException {
+			var jwe = JWE.build("payload").encrypt(Alg.hpke0(keyPair.getPublic()).withPsk(PSK)).toCompactSerialization();
+			var parsed = JWE.parse(jwe);
+			Assertions.assertEquals(Base64.getUrlEncoder().withoutPadding().encodeToString("psk-1".getBytes(StandardCharsets.UTF_8)), parsed.parsedProtectedHeader().get("psk_id").getAsString());
+			Assertions.assertEquals("payload", parsed.decrypt(Alg.hpke0(keyPair.getPrivate()).withPsk(PSK)).payload());
+			// psk_id may be listed in crit and is understood without declaring it
+			var critJwe = JWE.build("payload").withProtectedHeader(JsonParser.parseString("{\"crit\":[\"psk_id\"]}").getAsJsonObject()).encrypt(Alg.hpke9(JWK.parsePublic(Hpke9.PRIVATE_JWK)).withPsk(PSK)).toCompactSerialization();
+			Assertions.assertEquals("payload", JWE.parse(critJwe).decrypt(Alg.hpke9(JWK.parsePrivate(Hpke9.PRIVATE_JWK)).withPsk(PSK)).payload());
+		}
+
+		@Test
+		@DisplayName("the token's mode must match the configured PSK, and the PSK must match")
+		void testModeAndPskMismatch() throws JoseException {
+			var withPsk = JWE.parse(JWE.build("payload").encrypt(Alg.hpke0(keyPair.getPublic()).withPsk(PSK)).toCompactSerialization());
+			var withoutPsk = JWE.parse(JWE.build("payload").encrypt(Alg.hpke0(keyPair.getPublic())).toCompactSerialization());
+
+			assertDecryptFails(withPsk, Alg.hpke0(keyPair.getPrivate()), "no PSK is configured");
+			assertDecryptFails(withoutPsk, Alg.hpke0(keyPair.getPrivate()).withPsk(PSK), "mode_base");
+			assertDecryptFails(withPsk, Alg.hpke0(keyPair.getPrivate()).withPsk(OTHER_ID), "does not name the configured PSK");
+			assertDecryptFails(withPsk, Alg.hpke0(keyPair.getPrivate()).withPsk(OTHER_KEY), "Failed to open");
+		}
+
+		@Test
+		@DisplayName("psk_id must not be supplied by the caller and must be in the protected header")
+		void testPskIdPlacement() throws JoseException {
+			var alg = Alg.hpke0(keyPair.getPublic()).withPsk(PSK);
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withProtectedHeader(JsonParser.parseString("{\"psk_id\":\"x\"}").getAsJsonObject()).encrypt(alg));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withUnprotectedHeader(JsonParser.parseString("{\"psk_id\":\"x\"}").getAsJsonObject()).encrypt(alg));
+
+			// a token whose psk_id sits in the unprotected header is refused before any decryption attempt
+			var json = JsonParser.parseString(JWE.build("payload").encrypt(alg).toJsonSerialization()).getAsJsonObject();
+			var protectedHeader = JWE.parse(json.toString()).parsedProtectedHeader();
+			var pskId = protectedHeader.remove("psk_id");
+			json.addProperty("protected", Base64.getUrlEncoder().withoutPadding().encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8)));
+			var unprotected = new JsonObject();
+			unprotected.add("psk_id", pskId);
+			json.add("unprotected", unprotected);
+			assertDecryptFails(JWE.parse(json.toString()), Alg.hpke0(keyPair.getPrivate()).withPsk(PSK), "protected header");
+		}
+
+		private static void assertDecryptFails(org.cryptomator.jose.jwe.ParsedJWE parsed, DecryptionAlg alg, String expectedReason) {
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			Assertions.assertEquals(1, thrown.getSuppressed().length);
+			Assertions.assertTrue(thrown.getSuppressed()[0].getMessage().contains(expectedReason), thrown.getSuppressed()[0].getMessage());
 		}
 
 	}

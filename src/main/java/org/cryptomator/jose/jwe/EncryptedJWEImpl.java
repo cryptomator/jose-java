@@ -111,11 +111,12 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		if (userHeader.has("enc") || userHeader.has("ek")) {
 			throw new IllegalArgumentException("enc and ek headers must not be present for Integrated Encryption");
 		}
-		if (userHeader.has("alg")) {
-			throw new IllegalArgumentException("Header parameter 'alg' is derived from the algorithm and must not be set by the caller"); // in either header: the parser rejects duplicates
+		var algHeader = alg.generatedProtectedHeader(); // alg, and psk_id in mode_psk
+		for (var generated : algHeader.keySet()) {
+			if (userHeader.has(generated)) {
+				throw new IllegalArgumentException("Header parameter '" + generated + "' is derived from the algorithm and must not be set by the caller"); // in either header: the parser rejects duplicates
+			}
 		}
-		var algHeader = new JsonObject();
-		algHeader.addProperty("alg", alg.name());
 		var protectedHeader = disjointUnion(algHeader, ALG_GENERATED, builder.protectedHeader(), PROTECTED);
 		Crit.Builder.ensurePresent(Crit.Builder.validate(protectedHeader), JsonHelper.union(protectedHeader, builder.unprotectedHeader()));
 		var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));

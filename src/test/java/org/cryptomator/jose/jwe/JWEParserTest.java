@@ -220,10 +220,10 @@ class JWEParserTest {
 		}
 
 		@Test
-		@DisplayName("psk_id is not implemented and therefore not understood")
-		void testPskIdNotUnderstood() {
-			var jwe = jweWithProtected("{\"crit\":[\"psk_id\"],\"psk_id\":\"x\"}");
-			Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe));
+		@DisplayName("psk_id is implemented and therefore understood without being declared")
+		void testPskIdUnderstood() throws JoseException {
+			var jwe = jweWithProtected("{\"crit\":[\"psk_id\"],\"psk_id\":\"eA\"}");
+			Assertions.assertDoesNotThrow(() -> JWE.parse(jwe));
 		}
 
 		@Test

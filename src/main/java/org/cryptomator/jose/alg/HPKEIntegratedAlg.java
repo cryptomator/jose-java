@@ -4,19 +4,21 @@ import com.google.gson.JsonObject;
 import org.cryptomator.jose.IntegratedDecryptionAlg;
 import org.cryptomator.jose.IntegratedEncryptionAlg;
 import org.cryptomator.jose.JoseDecryptException;
+import org.cryptomator.jose.Psk;
 import org.cryptomator.jose.hpke.HPKE;
 
 import javax.crypto.AEADBadTagException;
 import javax.crypto.DecapsulateException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Objects;
 
 /// HPKE Integrated Encryption as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5):
 /// HPKE encrypts the payload directly, the encapsulated secret travels in the JWE Encrypted Key field, and the JWE Protected Header
 /// (as well as an optional JWE AAD) is bound to the ciphertext via the HPKE `aad` parameter.
 ///
-/// Only HPKE `mode_base` is supported. The draft also allows `mode_psk`, signalled by the `psk_id` header parameter; a token carrying `psk_id` is not understood
-/// (it is rejected when listed in `crit`, and otherwise fails to decrypt because the PSK never enters the key schedule).
+/// Runs in HPKE `mode_base`, or in `mode_psk` once a [Psk] is attached: the PSK identifier is then carried in the `psk_id` protected header parameter, and
+/// the mode of a token (`psk_id` present or not) must match the configured PSK on decryption.
 public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, IntegratedDecryptionAlg {
 
 	private static final byte[] EMPTY = new byte[0];
@@ -24,11 +26,17 @@ public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, Integra
 	private final HPKE hpke;
 	private final PublicKey publicKey;
 	private final PrivateKey privateKey;
+	private final Psk psk; // null for mode_base
 
 	public HPKEIntegratedAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey) {
+		this(hpke, publicKey, privateKey, null);
+	}
+
+	private HPKEIntegratedAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey, Psk psk) {
 		this.hpke = hpke;
 		this.publicKey = publicKey;
 		this.privateKey = privateKey;
+		this.psk = psk;
 	}
 
 	@Override
@@ -37,8 +45,23 @@ public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, Integra
 	}
 
 	@Override
+	public HPKEIntegratedAlg withPsk(Psk psk) {
+		return new HPKEIntegratedAlg(hpke, publicKey, privateKey, Objects.requireNonNull(psk, "psk"));
+	}
+
+	@Override
+	public JsonObject generatedProtectedHeader() {
+		var header = new JsonObject();
+		header.addProperty("alg", name());
+		if (psk != null) {
+			header.addProperty(PskMode.PSK_ID, PskMode.headerValue(psk)); // draft Section 5: psk_id is a protected header parameter
+		}
+		return header;
+	}
+
+	@Override
 	public Sealed seal(byte[] plaintext, byte[] aad) {
-		var sender = hpke.setupBaseS(publicKey, EMPTY); // the HPKE info parameter defaults to the empty octet sequence
+		var sender = hpke.setupS(publicKey, EMPTY, psk); // the HPKE info parameter defaults to the empty octet sequence
 		try (var ctx = sender.context()) {
 			return new Sealed(sender.enc(), ctx.seal(aad, plaintext));
 		}
@@ -52,10 +75,11 @@ public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, Integra
 		if (parts.iv().length > 0 || parts.tag().length > 0) {
 			throw new JoseDecryptException("iv and tag must be empty for Integrated Encryption");
 		}
-		try (var ctx = hpke.setupBaseR(parts.encryptedKey(), privateKey, EMPTY)) {
+		PskMode.verify(combinedHeader, psk);
+		try (var ctx = hpke.setupR(parts.encryptedKey(), privateKey, EMPTY, psk)) {
 			return ctx.open(parts.aad(), parts.ciphertext());
 		} catch (DecapsulateException | AEADBadTagException e) {
-			// Integrated Encryption has no separate key step, so a decapsulation or authentication failure just means this recipient/key does not match.
+			// Integrated Encryption has no separate key step, so a decapsulation or authentication failure just means this recipient/key (or PSK) does not match.
 			throw new JoseDecryptException("Failed to open Integrated Encryption ciphertext", e);
 		}
 	}

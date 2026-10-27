@@ -1,5 +1,25 @@
 package org.cryptomator.jose.alg;
 
+import java.nio.charset.StandardCharsets;
+
+import java.util.Base64;
+
+import java.security.GeneralSecurityException;
+
+import java.security.KeyPairGenerator;
+
+import java.security.KeyPair;
+
+import javax.crypto.spec.SecretKeySpec;
+
+import org.cryptomator.jose.hpke.XwingProvider;
+
+import org.cryptomator.jose.Recipient;
+
+import org.cryptomator.jose.Psk;
+
+import org.cryptomator.jose.JoseException;
+
 import com.google.gson.JsonParser;
 import org.cryptomator.jose.Alg;
 import org.cryptomator.jose.DecryptionAlg;
@@ -206,6 +226,68 @@ class HPKEKeyEncryptionAlgTest {
 			var decrypted = JWE.parse(jwe).decrypt(alg);
 			Assertions.assertEquals(EXPECTED_PAYLOAD_EN_DASH, decrypted.payload());
 			Assertions.assertEquals(EXPECTED_AAD, decrypted.aad());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("mode_psk")
+	class PskMode {
+
+		private static final Psk PSK = new Psk(new SecretKeySpec(new byte[64], "Generic"), "psk-1".getBytes(StandardCharsets.UTF_8));
+		private static final Psk OTHER_ID = new Psk(new SecretKeySpec(new byte[64], "Generic"), "psk-2".getBytes(StandardCharsets.UTF_8));
+
+		private KeyPair keyPair;
+
+		@BeforeEach
+		void setup() throws GeneralSecurityException {
+			keyPair = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE).generateKeyPair();
+		}
+
+		@Test
+		@DisplayName("round-trips with a PSK in compact and JSON serialization; psk_id is a per-recipient parameter")
+		void testRoundTrip() throws JoseException {
+			var encrypter = Alg.hpke9Ke(keyPair.getPublic()).withPsk(PSK);
+			var decrypter = Alg.hpke9Ke(keyPair.getPrivate()).withPsk(PSK);
+			var expectedPskId = Base64.getUrlEncoder().withoutPadding().encodeToString("psk-1".getBytes(StandardCharsets.UTF_8));
+
+			var compact = JWE.build("payload").encrypt(Enc.A256GCM, encrypter).toCompactSerialization();
+			Assertions.assertEquals(expectedPskId, JWE.parse(compact).parsedProtectedHeader().get("psk_id").getAsString()); // folded into the protected header
+			Assertions.assertEquals("payload", JWE.parse(compact).decrypt(decrypter).payload());
+
+			var json = JWE.build("payload").encrypt(Enc.A256GCM, encrypter, Alg.hpke9Ke(keyPair.getPublic())).toJsonSerialization(); // one PSK and one base recipient
+			var parsed = JWE.parse(json);
+			Assertions.assertEquals(expectedPskId, parsed.recipientHeaders().get(0).get("psk_id").getAsString());
+			Assertions.assertFalse(parsed.recipientHeaders().get(1).has("psk_id"));
+			Assertions.assertEquals("payload", parsed.decrypt(decrypter).payload());
+			Assertions.assertEquals("payload", parsed.decrypt(Alg.hpke9Ke(keyPair.getPrivate())).payload()); // the base recipient is still decryptable without a PSK
+		}
+
+		@Test
+		@DisplayName("a recipient's mode must match the configured PSK, which must match too")
+		void testModeAndPskMismatch() throws JoseException {
+			var withPsk = JWE.parse(JWE.build("payload").encrypt(Enc.A256GCM, Alg.hpke9Ke(keyPair.getPublic()).withPsk(PSK)).toCompactSerialization());
+			var withoutPsk = JWE.parse(JWE.build("payload").encrypt(Enc.A256GCM, Alg.hpke9Ke(keyPair.getPublic())).toCompactSerialization());
+
+			assertDecryptFails(withPsk, Alg.hpke9Ke(keyPair.getPrivate()), "no PSK is configured");
+			assertDecryptFails(withoutPsk, Alg.hpke9Ke(keyPair.getPrivate()).withPsk(PSK), "mode_base");
+			assertDecryptFails(withPsk, Alg.hpke9Ke(keyPair.getPrivate()).withPsk(OTHER_ID), "does not name the configured PSK");
+			assertDecryptFails(withPsk, Alg.hpke9Ke(keyPair.getPrivate()).withPsk(new Psk(new SecretKeySpec(new byte[]{1}, "Generic"), "psk-1".getBytes(StandardCharsets.UTF_8))), "Failed to decrypt CEK");
+		}
+
+		@Test
+		@DisplayName("psk_id is an alg-generated parameter and therefore refused as a caller claim")
+		void testGeneratedParam() {
+			var alg = Alg.hpke9Ke(keyPair.getPublic()).withPsk(PSK);
+			Assertions.assertEquals(java.util.Set.of("alg", "ek", "psk_id"), alg.generatedHeaderParams());
+			Assertions.assertThrows(IllegalArgumentException.class, () -> Recipient.withAlg(alg).withClaim("psk_id", "x"));
+			Assertions.assertDoesNotThrow(() -> Recipient.withAlg(Alg.hpke9Ke(keyPair.getPublic())).withClaim("psk_id", "x"), "without a PSK it is an ordinary (if ill-advised) claim");
+		}
+
+		private static void assertDecryptFails(org.cryptomator.jose.jwe.ParsedJWE parsed, DecryptionAlg alg, String expectedReason) {
+			var thrown = Assertions.assertThrows(JoseDecryptException.class, () -> parsed.decrypt(alg));
+			Assertions.assertEquals(1, thrown.getSuppressed().length);
+			Assertions.assertTrue(thrown.getSuppressed()[0].getMessage().contains(expectedReason), thrown.getSuppressed()[0].getMessage());
 		}
 
 	}

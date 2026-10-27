@@ -22,7 +22,8 @@ import java.security.interfaces.ECPublicKey;
 /// into key management (protecting a content encryption key, [RFC 7518 Section 4](https://www.rfc-editor.org/rfc/rfc7518#section-4)) and Integrated Encryption
 /// ([draft-ietf-jose-hpke-encrypt Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5), where HPKE encrypts the payload directly and there is no CEK).
 ///
-/// All HPKE algorithms (`hpke0`…`hpke9`, `hpke0Ke`…`hpke9Ke`) run in HPKE `mode_base` only; `mode_psk` and the `psk_id` header parameter are not supported.
+/// All HPKE algorithms (`hpke0`…`hpke9`, `hpke0Ke`…`hpke9Ke`) run in HPKE `mode_base` by default; attach a [Psk] with `withPsk` for `mode_psk`, which
+/// authenticates the sender as a holder of the pre-shared key and is signalled by the `psk_id` header parameter.
 public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 
 	/// The `alg` (algorithm) header parameter value identifying this algorithm.
@@ -114,7 +115,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Integrated Encryption with `HPKE-0`, as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5)
-	static DecryptionAlg hpke0(PrivateKey privateKey) {
+	static IntegratedDecryptionAlg hpke0(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
@@ -131,7 +132,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Integrated Encryption with `HPKE-0` using the private key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-0`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static DecryptionAlg hpke0(JWK.Private jwk) {
+	static IntegratedDecryptionAlg hpke0(JWK.Private jwk) {
 		return hpke0(requireAlg(jwk, "HPKE-0").privateKey());
 	}
 
@@ -144,7 +145,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Integrated Encryption with `HPKE-1`, as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5)
-	static DecryptionAlg hpke1(PrivateKey privateKey) {
+	static IntegratedDecryptionAlg hpke1(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
@@ -161,7 +162,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Integrated Encryption with `HPKE-1` using the private key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-1`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static DecryptionAlg hpke1(JWK.Private jwk) {
+	static IntegratedDecryptionAlg hpke1(JWK.Private jwk) {
 		return hpke1(requireAlg(jwk, "HPKE-1").privateKey());
 	}
 
@@ -174,7 +175,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Integrated Encryption with `HPKE-2`, as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5)
-	static DecryptionAlg hpke2(PrivateKey privateKey) {
+	static IntegratedDecryptionAlg hpke2(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
@@ -191,7 +192,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Integrated Encryption with `HPKE-2` using the private key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-2`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static DecryptionAlg hpke2(JWK.Private jwk) {
+	static IntegratedDecryptionAlg hpke2(JWK.Private jwk) {
 		return hpke2(requireAlg(jwk, "HPKE-2").privateKey());
 	}
 
@@ -201,7 +202,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Integrated Encryption with `HPKE-9`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
-	static DecryptionAlg hpke9(PrivateKey privateKey) {
+	static IntegratedDecryptionAlg hpke9(PrivateKey privateKey) {
 		return new HPKEIntegratedAlg(HPKE.hpke9(), null, asXwingPrivateKey(privateKey));
 	}
 
@@ -215,12 +216,12 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Integrated Encryption with `HPKE-9` using the private key of an AKP JWK, which must be bound to `HPKE-9` by its `alg` parameter.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` is not `HPKE-9`
-	static DecryptionAlg hpke9(JWK.Private jwk) {
+	static IntegratedDecryptionAlg hpke9(JWK.Private jwk) {
 		return hpke9(requireAlg(jwk, "HPKE-9").privateKey());
 	}
 
 	/// Key Encryption with `HPKE-0-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
-	static KeyEncryptionAlg hpke0Ke(PublicKey publicKey) {
+	static HpkeKeyEncryptionAlg hpke0Ke(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
@@ -228,7 +229,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Key Encryption with `HPKE-0-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
-	static DecryptionAlg hpke0Ke(PrivateKey privateKey) {
+	static HpkeKeyDecryptionAlg hpke0Ke(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
@@ -238,19 +239,19 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Key Encryption with `HPKE-0-KE` using the public key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-0-KE`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static KeyEncryptionAlg hpke0Ke(JWK.Public jwk) {
+	static HpkeKeyEncryptionAlg hpke0Ke(JWK.Public jwk) {
 		return hpke0Ke(requireAlg(jwk, "HPKE-0-KE").publicKey());
 	}
 
 	/// Key Encryption with `HPKE-0-KE` using the private key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-0-KE`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static DecryptionAlg hpke0Ke(JWK.Private jwk) {
+	static HpkeKeyDecryptionAlg hpke0Ke(JWK.Private jwk) {
 		return hpke0Ke(requireAlg(jwk, "HPKE-0-KE").privateKey());
 	}
 
 	/// Key Encryption with `HPKE-1-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
-	static KeyEncryptionAlg hpke1Ke(PublicKey publicKey) {
+	static HpkeKeyEncryptionAlg hpke1Ke(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
@@ -258,7 +259,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Key Encryption with `HPKE-1-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
-	static DecryptionAlg hpke1Ke(PrivateKey privateKey) {
+	static HpkeKeyDecryptionAlg hpke1Ke(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
@@ -268,19 +269,19 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Key Encryption with `HPKE-1-KE` using the public key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-1-KE`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static KeyEncryptionAlg hpke1Ke(JWK.Public jwk) {
+	static HpkeKeyEncryptionAlg hpke1Ke(JWK.Public jwk) {
 		return hpke1Ke(requireAlg(jwk, "HPKE-1-KE").publicKey());
 	}
 
 	/// Key Encryption with `HPKE-1-KE` using the private key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-1-KE`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static DecryptionAlg hpke1Ke(JWK.Private jwk) {
+	static HpkeKeyDecryptionAlg hpke1Ke(JWK.Private jwk) {
 		return hpke1Ke(requireAlg(jwk, "HPKE-1-KE").privateKey());
 	}
 
 	/// Key Encryption with `HPKE-2-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
-	static KeyEncryptionAlg hpke2Ke(PublicKey publicKey) {
+	static HpkeKeyEncryptionAlg hpke2Ke(PublicKey publicKey) {
 		if (!(publicKey instanceof ECPublicKey k)) {
 			throw new IllegalArgumentException("Public key must be an instance of ECPublicKey");
 		}
@@ -288,7 +289,7 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	}
 
 	/// Key Encryption with `HPKE-2-KE`, as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6)
-	static DecryptionAlg hpke2Ke(PrivateKey privateKey) {
+	static HpkeKeyDecryptionAlg hpke2Ke(PrivateKey privateKey) {
 		if (!(privateKey instanceof ECPrivateKey k)) {
 			throw new IllegalArgumentException("Private key must be an instance of ECPrivateKey");
 		}
@@ -298,38 +299,38 @@ public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 	/// Key Encryption with `HPKE-2-KE` using the public key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-2-KE`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static KeyEncryptionAlg hpke2Ke(JWK.Public jwk) {
+	static HpkeKeyEncryptionAlg hpke2Ke(JWK.Public jwk) {
 		return hpke2Ke(requireAlg(jwk, "HPKE-2-KE").publicKey());
 	}
 
 	/// Key Encryption with `HPKE-2-KE` using the private key of an EC JWK, whose `alg` parameter, if present, must be `HPKE-2-KE`.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` names another algorithm, or the key is not on the expected curve
-	static DecryptionAlg hpke2Ke(JWK.Private jwk) {
+	static HpkeKeyDecryptionAlg hpke2Ke(JWK.Private jwk) {
 		return hpke2Ke(requireAlg(jwk, "HPKE-2-KE").privateKey());
 	}
 
 	/// Key Encryption with `HPKE-9-KE`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
-	static KeyEncryptionAlg hpke9Ke(PublicKey publicKey) {
+	static HpkeKeyEncryptionAlg hpke9Ke(PublicKey publicKey) {
 		return new HPKEKeyEncryptionAlg(HPKE.hpke9(), asXwingPublicKey(publicKey), null);
 	}
 
 	/// Key Encryption with `HPKE-9-KE`, as defined in [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/)
-	static DecryptionAlg hpke9Ke(PrivateKey privateKey) {
+	static HpkeKeyDecryptionAlg hpke9Ke(PrivateKey privateKey) {
 		return new HPKEKeyEncryptionAlg(HPKE.hpke9(), null, asXwingPrivateKey(privateKey));
 	}
 
 	/// Key Encryption with `HPKE-9-KE` using the public key of an AKP JWK, which must be bound to `HPKE-9-KE` by its `alg` parameter.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` is not `HPKE-9-KE`
-	static KeyEncryptionAlg hpke9Ke(JWK.Public jwk) {
+	static HpkeKeyEncryptionAlg hpke9Ke(JWK.Public jwk) {
 		return hpke9Ke(requireAlg(jwk, "HPKE-9-KE").publicKey());
 	}
 
 	/// Key Encryption with `HPKE-9-KE` using the private key of an AKP JWK, which must be bound to `HPKE-9-KE` by its `alg` parameter.
 	///
 	/// @throws IllegalArgumentException if the JWK's `alg` is not `HPKE-9-KE`
-	static DecryptionAlg hpke9Ke(JWK.Private jwk) {
+	static HpkeKeyDecryptionAlg hpke9Ke(JWK.Private jwk) {
 		return hpke9Ke(requireAlg(jwk, "HPKE-9-KE").privateKey());
 	}
 

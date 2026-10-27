@@ -9,7 +9,7 @@ class HPKEContextTest {
 
 	private HPKE.Context senderContext() {
 		var keyPair = Curve.P256.generateKeyPair(); // hpke0 = DHKEM(P-256)
-		return HPKE.hpke0().setupBaseS(keyPair.getPublic(), new byte[0]).context();
+		return HPKE.hpke0().setupS(keyPair.getPublic(), new byte[0], null).context();
 	}
 
 	@Test

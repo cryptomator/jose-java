@@ -19,10 +19,9 @@ public final class Crit {
 			"epk", "apu", "apv", "iv", "tag", "p2s", "p2c" // RFC 7518 §4.6.1, §4.7.1, §4.8.1
 	);
 
-	/// Extension header parameters this library implements and therefore always understands: `ek` from
+	/// Extension header parameters this library implements and therefore always understands: `ek` and `psk_id` from
 	/// [draft-ietf-jose-hpke-encrypt, Section 11.2](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-11.2).
-	/// `psk_id` from the same registry is deliberately absent, as the HPKE PSK modes are not implemented.
-	public static final Set<String> IMPLEMENTED_EXTENSIONS = Set.of("ek");
+	public static final Set<String> IMPLEMENTED_EXTENSIONS = Set.of("ek", "psk_id");
 
 	private Crit() {
 	}

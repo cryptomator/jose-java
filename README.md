@@ -10,7 +10,7 @@
 - [RFC 7516 (JWE)](https://datatracker.ietf.org/doc/html/rfc7516) and [RFC 7518 (JWA)](https://datatracker.ietf.org/doc/html/rfc7518): compact and JSON serialization (incl. multiple recipients with per-recipient headers), `A256KW`, `PBES2-HS512+A256KW`, `ECDH-ES+A256KW` (P-256/P-384/P-521), `A128GCM`/`A256GCM`
 - [RFC 7515 (JWS)](https://datatracker.ietf.org/doc/html/rfc7515): compact serialization, `HS256`/`HS384`/`HS512`
 - [draft-ietf-jose-hpke-encrypt](https://datatracker.ietf.org/doc/draft-ietf-jose-hpke-encrypt/): use of HPKE ([RFC 9180](https://www.rfc-editor.org/rfc/rfc9180) / [draft-ietf-hpke-hpke](https://datatracker.ietf.org/doc/draft-ietf-hpke-hpke/)) with JWE, in both Key Management Modes —
-  Integrated Encryption (`HPKE-0`, `HPKE-1`, `HPKE-2`) and Key Encryption (`HPKE-0-KE`, `HPKE-1-KE`, `HPKE-2-KE`); HPKE `mode_base` only, `mode_psk` (`psk_id`) is not supported yet
+  Integrated Encryption (`HPKE-0`, `HPKE-1`, `HPKE-2`) and Key Encryption (`HPKE-0-KE`, `HPKE-1-KE`, `HPKE-2-KE`); HPKE `mode_base`, and `mode_psk` via `withPsk(psk)` (`psk_id` header parameter)
 - [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/draft-ietf-jose-hpke-pq-pqt/): PQ/T hybrid HPKE — `HPKE-9` and `HPKE-9-KE`, based on the MLKEM768-X25519 KEM and SHAKE256 KDF from [draft-ietf-hpke-pq](https://datatracker.ietf.org/doc/draft-ietf-hpke-pq/); the KEM is identical to X-Wing ([draft-connolly-cfrg-xwing-kem](https://datatracker.ietf.org/doc/draft-connolly-cfrg-xwing-kem/))
 - [RFC 9964 (AKP JWKs)](https://www.rfc-editor.org/rfc/rfc9964): parsing Algorithm Key Pair JWKs for the PQ/T hybrid algorithms
 
@@ -28,6 +28,15 @@ var encrypted = JWE.build("payload")
 
 // decrypt:
 var decrypted = JWE.parse(encrypted).decrypt(Alg.hpke9(receiverPrivateKey));
+```
+
+With a pre-shared key (HPKE `mode_psk`), the recipient additionally learns that the sender holds the PSK; the PSK identifier travels as the `psk_id` header parameter:
+
+```java
+var pskId = "our-little-secret".getBytes(StandardCharsets.UTF_8); 
+var psk = new Psk(pskKey, pskId); // pskKey: a SecretKey with at least 32 bytes of entropy
+var encrypted = JWE.build("payload").encrypt(Alg.hpke9(receiverPublicKey).withPsk(psk)).toCompactSerialization();
+var decrypted = JWE.parse(encrypted).decrypt(Alg.hpke9(receiverPrivateKey).withPsk(psk)); // refuses tokens without psk_id
 ```
 
 ### Key Encryption with HPKE-9-KE

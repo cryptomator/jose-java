@@ -1,5 +1,6 @@
 package org.cryptomator.jose.hpke;
 
+import org.cryptomator.jose.Psk;
 import org.cryptomator.jose.util.ArrayUtil;
 import org.cryptomator.jose.util.Destroyables;
 
@@ -13,14 +14,21 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.util.Arrays;
 
-/// An HPKE ciphersuite (KEM, KDF, AEAD) as defined in [draft-ietf-hpke-hpke](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03), offering the base mode
-/// sender and recipient setup. Only `mode_base` is implemented: `mode_psk` (a pre-shared key authenticating the sender, draft-ietf-hpke-hpke Section 5.1.2) as
-/// well as `mode_auth` and `mode_auth_psk` are not supported, although the key schedule already accepts the PSK inputs. The static factory methods provide the suites registered for JOSE in
+/// An HPKE ciphersuite (KEM, KDF, AEAD) as defined in [draft-ietf-hpke-hpke](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03), offering the
+/// `mode_base` and `mode_psk` sender and recipient setups (`mode_auth` and `mode_auth_psk` are not supported). The static factory methods provide the suites registered for JOSE in
 /// [draft-ietf-jose-hpke-encrypt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/) and
 /// [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/); `baseName` is the JOSE `alg` name of the suite's
 /// Integrated Encryption variant (the Key Encryption variant appends `-KE`).
 public final class HPKE {
+
+	/// HPKE modes as defined in [draft-ietf-hpke-hpke, Table 1](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5)
+	public static final byte MODE_BASE = 0x00;
+	public static final byte MODE_PSK = 0x01;
+
+	private static final byte[] EMPTY = new byte[0];
 
 	private final String baseName;
 	private final KEM kem;
@@ -87,27 +95,46 @@ public final class HPKE {
 		return baseName;
 	}
 
-	/// `SetupBaseS` as defined in [draft-ietf-hpke-hpke, Section 5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1.1):
-	/// encapsulates a shared secret for `pkR` and derives the sender's encryption context.
-	public Sender setupBaseS(PublicKey pkR, byte[] info) {
+	/// `SetupBaseS` or, with a PSK, `SetupPSKS` as defined in [draft-ietf-hpke-hpke, Section 5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1.1)
+	/// and [Section 5.1.2](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1.2): encapsulates a shared secret for `pkR` and derives the
+	/// sender's encryption context; in `mode_psk` the pre-shared key is mixed into the key schedule, which authenticates the sender as a holder of that key.
+	///
+	/// @param pkR The recipient's public key
+	/// @param info Application-supplied information
+	/// @param psk The pre-shared key for `mode_psk`, or `null` for `mode_base`
+	/// @return The encapsulated secret and the sender's context
+	public Sender setupS(PublicKey pkR, byte[] info, Psk psk) { // TODO: mark psk as nullable
+		return setupS(pkR, info, psk, null);
+	}
+
+	// visible for testing: a fixed SecureRandom makes the KEM encapsulation reproducible against test vectors
+	Sender setupS(PublicKey pkR, byte[] info, Psk psk, SecureRandom random) {
 		KEM.Encapsulated encapsulated;
 		try {
-			encapsulated = kem.newEncapsulator(pkR).encapsulate();
+			encapsulated = kem.newEncapsulator(pkR, random).encapsulate(); // null random: the provider's default
 		} catch (InvalidKeyException e) {
 			throw new IllegalArgumentException("Invalid receiver public key for " + kem.getAlgorithm(), e);
 		}
 		var sharedSecret = DestroyableSecretKey.copyOf(encapsulated.key()); // the JDK's DHKEM returns a SecretKeySpec, which cannot be wiped; our copy can
 		try {
-			return new Sender(encapsulated.encapsulation(), keySchedule((byte) 0x00, sharedSecret, info, new byte[0], new byte[0]));
+			return new Sender(encapsulated.encapsulation(), keySchedule(sharedSecret, info, psk));
 		} finally {
 			sharedSecret.destroy();
 			Destroyables.destroyQuietly(encapsulated.key()); // a no-op for SecretKeySpec, but harmless
 		}
 	}
 
-	/// `SetupBaseR` as defined in [draft-ietf-hpke-hpke, Section 5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1.1):
-	/// decapsulates `enc` with `skR` and derives the recipient's encryption context.
-	public Context setupBaseR(byte[] enc, PrivateKey skR, byte[] info) throws DecapsulateException {
+	/// `SetupBaseR` or, with a PSK, `SetupPSKR` as defined in [draft-ietf-hpke-hpke, Section 5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1.1)
+	/// and [Section 5.1.2](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1.2): decapsulates `enc` with `skR` and derives the recipient's
+	/// encryption context; in `mode_psk` opening only succeeds if the sender used the same pre-shared key.
+	///
+	/// @param enc The encapsulated secret
+	/// @param skR The recipient's private key
+	/// @param info Application-supplied information
+	/// @param psk The pre-shared key for `mode_psk`, or `null` for `mode_base`
+	/// @return The recipient's context
+	/// @throws DecapsulateException if `enc` cannot be decapsulated
+	public Context setupR(byte[] enc, PrivateKey skR, byte[] info, Psk psk) throws DecapsulateException { // TODO: mark psk as nullable
 		SecretKey decapsulated;
 		try {
 			decapsulated = kem.newDecapsulator(skR).decapsulate(enc);
@@ -116,7 +143,7 @@ public final class HPKE {
 		}
 		var sharedSecret = DestroyableSecretKey.copyOf(decapsulated); // the JDK's DHKEM returns a SecretKeySpec, which cannot be wiped; our copy can
 		try {
-			return keySchedule((byte) 0x00, sharedSecret, info, new byte[0], new byte[0]);
+			return keySchedule(sharedSecret, info, psk);
 		} finally {
 			sharedSecret.destroy();
 			Destroyables.destroyQuietly(decapsulated); // a no-op for SecretKeySpec, but harmless
@@ -128,24 +155,44 @@ public final class HPKE {
 	public record Sender(byte[] enc, Context context) {
 	}
 
+	// the mode follows from the presence of a PSK; its bytes only live for the duration of the key schedule
+	private Context keySchedule(SecretKey sharedSecret, byte[] info, Psk psk) { // TODO: mark psk as nullable
+		if (psk == null) {
+			return keySchedule(MODE_BASE, sharedSecret, info, EMPTY, EMPTY);
+		}
+		var pskBytes = psk.key().getEncoded();
+		try {
+			return keySchedule(MODE_PSK, sharedSecret, info, pskBytes, psk.id());
+		} finally {
+			Arrays.fill(pskBytes, (byte) 0x00);
+		}
+	}
+
 	/// creates an encryption context as defined in [draft-ietf-hpke-hpke, Section 5.1](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1)
 	///
 	/// @param mode A one-byte value indicating the HPKE mode, defined in Table 1.
 	/// @param sharedSecret A KEM shared secret generated for this transaction.
 	/// @param info Application-supplied information (optional).
-	/// @param psk A pre-shared key (PSK) held by both the sender and the recipient; must be empty, as only `mode_base` is supported
-	/// @param pskId An identifier for the PSK; must be empty, as only `mode_base` is supported
-	/// @throws UnsupportedOperationException for any mode other than `mode_base`
+	/// @param psk A pre-shared key (PSK) held by both the sender and the recipient; empty in `mode_base`, non-empty in `mode_psk`
+	/// @param pskId An identifier for the PSK; empty in `mode_base`, non-empty in `mode_psk`
+	/// @throws IllegalArgumentException if the PSK inputs do not match the mode (`VerifyPSKInputs`)
+	/// @throws UnsupportedOperationException for `mode_auth` and `mode_auth_psk`
 	// visible for testing
 	Context keySchedule(byte mode, SecretKey sharedSecret, byte[] info, byte[] psk, byte[] pskId) {
-		if ((psk.length == 0) != (pskId.length == 0)) {
+		if (mode != MODE_BASE && mode != MODE_PSK) {
+			throw new UnsupportedOperationException("Only mode_base and mode_psk are supported (no mode_auth or mode_auth_psk)");
+		}
+		// VerifyPSKInputs, draft-ietf-hpke-hpke Section 5.1:
+		var gotPsk = psk.length > 0;
+		var gotPskId = pskId.length > 0;
+		if (gotPsk != gotPskId) {
 			throw new IllegalArgumentException("Inconsistent PSK inputs");
 		}
-		if (mode == 0x00 && psk.length > 0) { // mode_base
+		if (gotPsk && mode == MODE_BASE) {
 			throw new IllegalArgumentException("PSK input provided when not needed");
 		}
-		if (mode != 0x00) {
-			throw new UnsupportedOperationException("Only mode_base is supported (no mode_psk, mode_auth or mode_auth_psk)");
+		if (!gotPsk && mode == MODE_PSK) {
+			throw new IllegalArgumentException("Missing required PSK input");
 		}
 
 		var derived = kdf.combineSecrets(mode, sharedSecret, info, psk, pskId, suiteId, "AES", aead.nk, aead.nn);
