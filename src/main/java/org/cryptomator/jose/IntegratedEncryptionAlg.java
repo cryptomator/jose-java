@@ -4,6 +4,7 @@ import org.cryptomator.jose.alg.HPKEIntegratedAlg;
 
 /// HPKE Integrated Encryption as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5):
 /// HPKE encrypts the payload directly — there is no CEK, no `enc` or `ek` header parameter, the JWE IV and Authentication Tag are empty, and there is exactly one recipient.
+/// Only HPKE `mode_base` is supported; `mode_psk` (`psk_id` header parameter) is not.
 public sealed interface IntegratedEncryptionAlg extends EncryptionAlg permits HPKEIntegratedAlg {
 
 	/// Encrypts the payload in a single HPKE operation.

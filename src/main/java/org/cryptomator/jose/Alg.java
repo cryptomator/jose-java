@@ -21,6 +21,8 @@ import java.security.interfaces.ECPublicKey;
 /// A JWE algorithm, identified by its `alg` header value. It is split by direction into [EncryptionAlg] and [DecryptionAlg], and by JWE Key Management Mode
 /// into key management (protecting a content encryption key, [RFC 7518 Section 4](https://www.rfc-editor.org/rfc/rfc7518#section-4)) and Integrated Encryption
 /// ([draft-ietf-jose-hpke-encrypt Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5), where HPKE encrypts the payload directly and there is no CEK).
+///
+/// All HPKE algorithms (`hpke0`…`hpke9`, `hpke0Ke`…`hpke9Ke`) run in HPKE `mode_base` only; `mode_psk` and the `psk_id` header parameter are not supported.
 public sealed interface Alg permits DecryptionAlg, EncryptionAlg {
 
 	/// The `alg` (algorithm) header parameter value identifying this algorithm.

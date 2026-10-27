@@ -16,6 +16,9 @@ import java.util.Set;
 
 /// HPKE Key Encryption as defined in [draft-ietf-jose-hpke-encrypt, Section 6](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-6):
 /// HPKE seals the CEK, the encapsulated secret travels in the `ek` header parameter, and the content is encrypted with a regular [org.cryptomator.jose.Enc].
+///
+/// Only HPKE `mode_base` is supported. The draft also allows `mode_psk`, signalled by the `psk_id` header parameter; a token carrying `psk_id` is not understood
+/// (it is rejected when listed in `crit`, and otherwise fails to decrypt because the PSK never enters the key schedule).
 public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg {
 
 	private static final byte[] SEPARATOR = {(byte) 0xFF};

@@ -14,6 +14,9 @@ import java.security.PublicKey;
 /// HPKE Integrated Encryption as defined in [draft-ietf-jose-hpke-encrypt, Section 5](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/#section-5):
 /// HPKE encrypts the payload directly, the encapsulated secret travels in the JWE Encrypted Key field, and the JWE Protected Header
 /// (as well as an optional JWE AAD) is bound to the ciphertext via the HPKE `aad` parameter.
+///
+/// Only HPKE `mode_base` is supported. The draft also allows `mode_psk`, signalled by the `psk_id` header parameter; a token carrying `psk_id` is not understood
+/// (it is rejected when listed in `crit`, and otherwise fails to decrypt because the PSK never enters the key schedule).
 public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, IntegratedDecryptionAlg {
 
 	private static final byte[] EMPTY = new byte[0];

@@ -15,7 +15,8 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 
 /// An HPKE ciphersuite (KEM, KDF, AEAD) as defined in [draft-ietf-hpke-hpke](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03), offering the base mode
-/// sender and recipient setup. The static factory methods provide the suites registered for JOSE in
+/// sender and recipient setup. Only `mode_base` is implemented: `mode_psk` (a pre-shared key authenticating the sender, draft-ietf-hpke-hpke Section 5.1.2) as
+/// well as `mode_auth` and `mode_auth_psk` are not supported, although the key schedule already accepts the PSK inputs. The static factory methods provide the suites registered for JOSE in
 /// [draft-ietf-jose-hpke-encrypt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-encrypt/) and
 /// [draft-ietf-jose-hpke-pq-pqt](https://datatracker.ietf.org/doc/html/draft-ietf-jose-hpke-pq-pqt/); `baseName` is the JOSE `alg` name of the suite's
 /// Integrated Encryption variant (the Key Encryption variant appends `-KE`).
@@ -132,8 +133,9 @@ public final class HPKE {
 	/// @param mode A one-byte value indicating the HPKE mode, defined in Table 1.
 	/// @param sharedSecret A KEM shared secret generated for this transaction.
 	/// @param info Application-supplied information (optional).
-	/// @param psk A pre-shared key (PSK) held by both the sender and the recipient (optional).
-	/// @param pskId An identifier for the PSK (optional).
+	/// @param psk A pre-shared key (PSK) held by both the sender and the recipient; must be empty, as only `mode_base` is supported
+	/// @param pskId An identifier for the PSK; must be empty, as only `mode_base` is supported
+	/// @throws UnsupportedOperationException for any mode other than `mode_base`
 	// visible for testing
 	Context keySchedule(byte mode, SecretKey sharedSecret, byte[] info, byte[] psk, byte[] pskId) {
 		if ((psk.length == 0) != (pskId.length == 0)) {
@@ -143,7 +145,7 @@ public final class HPKE {
 			throw new IllegalArgumentException("PSK input provided when not needed");
 		}
 		if (mode != 0x00) {
-			throw new UnsupportedOperationException("Only mode_base is currently supported");
+			throw new UnsupportedOperationException("Only mode_base is supported (no mode_psk, mode_auth or mode_auth_psk)");
 		}
 
 		var derived = kdf.combineSecrets(mode, sharedSecret, info, psk, pskId, suiteId, "AES", aead.nk, aead.nn);
