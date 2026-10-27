@@ -8,6 +8,7 @@ import javax.crypto.spec.HKDFParameterSpec;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 /// Two-stage `Extract`/`Expand` KDF as defined in [RFC 5869](https://www.rfc-editor.org/rfc/rfc5869)
 public record HKDF(KDF kdf) implements Kdf {
@@ -43,7 +44,13 @@ public record HKDF(KDF kdf) implements Kdf {
 		var infoHash = deriveData(labeledExtract(suiteId, "info_hash").addIKM(info).extractOnly());
 		var keyScheduleContext = ArrayUtil.concat(new byte[]{mode}, pskIdHash, infoHash);
 		var secret = labeledExtract(suiteId, "secret").addIKM(psk).addSalt(sharedSecret);
-		var key = deriveKey(labeledExpand(suiteId, secret, "key", keyScheduleContext, nk), keyAlg);
+		var keyBytes = deriveData(labeledExpand(suiteId, secret, "key", keyScheduleContext, nk));
+		final DestroyableSecretKey key;
+		try {
+			key = new DestroyableSecretKey(keyBytes, keyAlg); // deriveData instead of deriveKey: the JDK would return an unwipeable SecretKeySpec
+		} finally {
+			Arrays.fill(keyBytes, (byte) 0x00);
+		}
 		var baseNonce = deriveData(labeledExpand(suiteId, secret, "base_nonce", keyScheduleContext, nn));
 		// unused var exporterSecret = deriveData(labeledExpand(suiteId, secret, "exp", keyScheduleContext, nh)); // get Nh from KDF https://www.iana.org/assignments/hpke/hpke.xhtml
 		return new DerivedKeys(key, baseNonce);
@@ -66,16 +73,6 @@ public record HKDF(KDF kdf) implements Kdf {
 	private static byte[] labeledInfo(byte[] suiteId, String label, byte[] info, int length) {
 		byte[] l = {(byte) (length >>> 8), (byte) length};
 		return ArrayUtil.concat(l, "HPKE-v1".getBytes(StandardCharsets.US_ASCII), suiteId, label.getBytes(StandardCharsets.US_ASCII), info);
-	}
-
-	public SecretKey deriveKey(HKDFParameterSpec params, String alg) {
-		try {
-			return kdf.deriveKey(alg, params);
-		} catch (InvalidAlgorithmParameterException e) {
-			throw new IllegalArgumentException("invalid KDF params", e);
-		} catch (NoSuchAlgorithmException e) {
-			throw new IllegalArgumentException("Invalid key alg", e);
-		}
 	}
 
 	public byte[] deriveData(HKDFParameterSpec params) {

@@ -4,7 +4,7 @@ import org.bouncycastle.crypto.digests.SHAKEDigest;
 import org.cryptomator.jose.util.ArrayUtil;
 
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -41,7 +41,7 @@ public enum Shake implements Kdf {
 			secrets = ArrayUtil.concat(lengthPrefixed(psk), prefixedSharedSecret);
 			context = ArrayUtil.concat(new byte[]{mode}, lengthPrefixed(pskId), lengthPrefixed(info));
 			secret = labeledDerive(suiteId, secrets, "secret", context, nk + nn + nh);
-			var key = new SecretKeySpec(secret, 0, nk, keyAlg);
+			var key = new DestroyableSecretKey(secret, 0, nk, keyAlg); // owns its own copy; secret is wiped below
 			var baseNonce = Arrays.copyOfRange(secret, nk, nk + nn);
 			return new DerivedKeys(key, baseNonce); // exporter_secret (secret[nk + nn:]) is unused
 		} finally {

@@ -31,6 +31,17 @@ class HPKEContextTest {
 	}
 
 	@Test
+	@DisplayName("close wipes the AEAD key, after which the context is unusable")
+	void testCloseDestroysKey() {
+		var ctx = senderContext();
+		Assertions.assertFalse(ctx.isDestroyed());
+		Assertions.assertDoesNotThrow(() -> ctx.seal(new byte[0], new byte[0]));
+		ctx.close();
+		Assertions.assertTrue(ctx.isDestroyed());
+		Assertions.assertThrows(IllegalStateException.class, () -> ctx.seal(new byte[0], new byte[0]));
+	}
+
+	@Test
 	@DisplayName("open refuses once the sequence number would wrap and reuse a nonce")
 	void testMessageLimitOpen() {
 		try (var ctx = senderContext()) {

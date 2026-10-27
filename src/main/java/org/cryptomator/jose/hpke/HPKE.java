@@ -95,27 +95,30 @@ public final class HPKE {
 		} catch (InvalidKeyException e) {
 			throw new IllegalArgumentException("Invalid receiver public key for " + kem.getAlgorithm(), e);
 		}
-		var sharedSecret = encapsulated.key();
+		var sharedSecret = DestroyableSecretKey.copyOf(encapsulated.key()); // the JDK's DHKEM returns a SecretKeySpec, which cannot be wiped; our copy can
 		try {
 			return new Sender(encapsulated.encapsulation(), keySchedule((byte) 0x00, sharedSecret, info, new byte[0], new byte[0]));
 		} finally {
-			Destroyables.destroyQuietly(sharedSecret);
+			sharedSecret.destroy();
+			Destroyables.destroyQuietly(encapsulated.key()); // a no-op for SecretKeySpec, but harmless
 		}
 	}
 
 	/// `SetupBaseR` as defined in [draft-ietf-hpke-hpke, Section 5.1.1](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.1.1):
 	/// decapsulates `enc` with `skR` and derives the recipient's encryption context.
 	public Context setupBaseR(byte[] enc, PrivateKey skR, byte[] info) throws DecapsulateException {
-		SecretKey sharedSecret;
+		SecretKey decapsulated;
 		try {
-			sharedSecret = kem.newDecapsulator(skR).decapsulate(enc);
+			decapsulated = kem.newDecapsulator(skR).decapsulate(enc);
 		} catch (InvalidKeyException e) {
 			throw new IllegalArgumentException("Invalid receiver private key for " + kem.getAlgorithm(), e);
 		}
+		var sharedSecret = DestroyableSecretKey.copyOf(decapsulated); // the JDK's DHKEM returns a SecretKeySpec, which cannot be wiped; our copy can
 		try {
 			return keySchedule((byte) 0x00, sharedSecret, info, new byte[0], new byte[0]);
 		} finally {
-			Destroyables.destroyQuietly(sharedSecret);
+			sharedSecret.destroy();
+			Destroyables.destroyQuietly(decapsulated); // a no-op for SecretKeySpec, but harmless
 		}
 	}
 
@@ -147,8 +150,8 @@ public final class HPKE {
 		return new Context(derived.key(), derived.baseNonce());
 	}
 
-	/// An HPKE encryption context as defined in [draft-ietf-hpke-hpke, Section 5.2](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.2),
-	/// holding key material that is destroyed on [#close()].
+	/// An HPKE encryption context as defined in [draft-ietf-hpke-hpke, Section 5.2](https://datatracker.ietf.org/doc/html/draft-ietf-hpke-hpke-03#section-5.2).
+	/// [#close()] wipes the AEAD key this context holds (best effort: copies inside the JDK cipher are outside its control); afterwards [#seal]/[#open] fail.
 	public final class Context implements AutoCloseable, Destroyable {
 		private static final long MESSAGE_LIMIT = (1L << 32) - 1; // this implementation encodes the sequence number in the low 4 bytes of the nonce; refuse further messages before it would wrap and reuse a nonce (draft-ietf-hpke-hpke Section 5.2)
 
@@ -195,6 +198,11 @@ public final class HPKE {
 		@Override
 		public void destroy() {
 			Destroyables.destroyQuietly(key);
+		}
+
+		@Override
+		public boolean isDestroyed() {
+			return key.isDestroyed();
 		}
 
 		@Override

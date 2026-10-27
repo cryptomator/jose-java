@@ -8,7 +8,7 @@ import javax.crypto.DecapsulateException;
 import javax.crypto.KEM;
 import javax.crypto.KEMSpi;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
+
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -83,7 +83,7 @@ public class XwingKEMSpi implements KEMSpi {
 			var ss = combiner(ssM, ssX, ctX, pkX);
 			var ct = ArrayUtil.concat(ctM, ctX);
 			try {
-				return new KEM.Encapsulated(new SecretKeySpec(ss, "Generic"), ct, null);
+				return new KEM.Encapsulated(new DestroyableSecretKey(ss, "Generic"), ct, null);
 			} finally {
 				Arrays.fill(ss, (byte) 0x00);
 				Arrays.fill(ssM, (byte) 0x00);
@@ -154,7 +154,7 @@ public class XwingKEMSpi implements KEMSpi {
 			// Combine:
 			var ss = combiner(ssM, ssX, ctX, pkX);
 			try {
-				return new SecretKeySpec(ss, "Generic");
+				return new DestroyableSecretKey(ss, "Generic");
 			} finally {
 				Arrays.fill(ss, (byte) 0x00);
 				Arrays.fill(ssM, (byte) 0x00);

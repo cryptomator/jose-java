@@ -27,7 +27,7 @@ class ShakeTest {
 	@Test
 	@DisplayName("CombineSecrets_OneStage with SHAKE256 derives key and base_nonce")
 	public void testCombineSecrets() {
-		var sharedSecret = new DestroyableSecret(SHARED_SECRET);
+		var sharedSecret = new DestroyableSecretKey(SHARED_SECRET, "Generic");
 
 		// ChaCha20Poly1305: Nk = 32, Nn = 12
 		var derived = Shake.SHAKE256.combineSecrets((byte) 0x00, sharedSecret, INFO, new byte[0], new byte[0], SUITE_ID, "Generic", 32, 12);
@@ -74,25 +74,6 @@ class ShakeTest {
 
 		Assertions.assertArrayEquals(KEY, derived.key().getEncoded());
 		Assertions.assertArrayEquals(BASE_NONCE, derived.baseNonce());
-	}
-
-	// combineSecrets zeroes the encoded shared secret it obtains, so hand it a copy to keep the test vector intact
-	private record DestroyableSecret(byte[] secret) implements SecretKey {
-
-		@Override
-		public String getAlgorithm() {
-			return "Generic";
-		}
-
-		@Override
-		public String getFormat() {
-			return "RAW";
-		}
-
-		@Override
-		public byte[] getEncoded() {
-			return secret.clone();
-		}
 	}
 
 }
