@@ -10,6 +10,8 @@ public sealed interface IntegratedEncryptionAlg extends EncryptionAlg permits HP
 	///
 	/// @param plaintext The JWE payload
 	/// @param aad The JWE Additional Authenticated Data encryption parameter, i.e. `ASCII(BASE64URL(protected) [ '.' BASE64URL(aad) ])`
+	/// @return The encapsulated secret and the ciphertext
+	/// @apiNote Internal: called by the JWE builder. Users obtain instances via [Alg] and pass them to `JWE.build(...).encrypt(alg)`.
 	Sealed seal(byte[] plaintext, byte[] aad);
 
 	/// The result of a single HPKE seal operation.

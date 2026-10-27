@@ -21,16 +21,38 @@ public sealed interface Enc permits AESGCM {
 		};
 	}
 
+	/// @return The `enc` header parameter value identifying this algorithm
 	String encValue();
 
+	/// @return A fresh random content encryption key of this algorithm's key size
+	/// @apiNote Internal: called by the JWE builder. Users select an `Enc` and pass it to `JWE.build(...).encrypt(enc, alg...)`.
 	byte[] generateCek();
 
+	/// @return A fresh random IV of this algorithm's IV size
+	/// @apiNote Internal: called by the JWE builder. Users select an `Enc` and pass it to `JWE.build(...).encrypt(enc, alg...)`.
 	byte[] generateIv();
 
+	/// @param cek The content encryption key
+	/// @param iv The JWE Initialization Vector, which MUST be fresh for every encryption under the same key (see [#generateIv])
+	/// @param aad The JWE Additional Authenticated Data encryption parameter
+	/// @param plaintext The payload
+	/// @return The ciphertext and the authentication tag
+	/// @apiNote Internal: called by the JWE builder, which draws a fresh IV per encryption. Users select an `Enc` and pass it to `JWE.build(...).encrypt(enc, alg...)`;
+	/// do not use this as a general-purpose AES-GCM helper, a repeated IV under one key breaks GCM's confidentiality and authentication.
 	EncryptionResult encrypt(byte[] cek, byte[] iv, byte[] aad, byte[] plaintext);
 
+	/// @param cek The content encryption key
+	/// @param iv The JWE Initialization Vector
+	/// @param aad The JWE Additional Authenticated Data encryption parameter
+	/// @param ciphertext The JWE Ciphertext
+	/// @param tag The JWE Authentication Tag
+	/// @return The payload
+	/// @throws JoseDecryptException if the CEK, IV or tag length does not match this algorithm, or authentication fails
+	/// @apiNote Internal: called by the Key Encryption decrypt path. Users select an `Enc` and pass it to `JWE.build(...).encrypt(enc, alg...)`.
 	byte[] decrypt(byte[] cek, byte[] iv, byte[] aad, byte[] ciphertext, byte[] tag) throws JoseDecryptException;
 
+	/// @param ciphertext The JWE Ciphertext
+	/// @param tag The JWE Authentication Tag
 	record EncryptionResult(byte[] ciphertext, byte[] tag) {
 	}
 

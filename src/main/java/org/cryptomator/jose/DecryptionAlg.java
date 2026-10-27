@@ -9,6 +9,10 @@ public sealed interface DecryptionAlg extends Alg permits KeyDecryptionAlg, Inte
 	///
 	/// @param combinedHeader The combined header (i.e. protected, shared unprotected and per-recipient unprotected)
 	/// @param parts The raw JWE parts
+	/// @return The decrypted payload
+	/// @throws JoseDecryptException if this recipient cannot be decrypted with this algorithm
+	/// @apiNote Internal: called by the decrypt loop in `ParsedJWE`, which performs the structural, `crit` and mode checks first. Users obtain instances via [Alg]
+	/// and pass them to `JWE.parse(...).decrypt(alg...)`.
 	byte[] decrypt(JsonObject combinedHeader, JweParts parts) throws JoseDecryptException;
 
 	/// The raw (base64url-decoded) parts of a JWE relevant for decrypting one recipient.

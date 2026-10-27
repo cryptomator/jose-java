@@ -13,6 +13,7 @@ public sealed interface MacAlg permits HmacAlg {
 
 	/// @param signingInput The JWS Signing Input, i.e. `ASCII(BASE64URL(UTF8(JWS Protected Header)) || '.' || BASE64URL(JWS Payload))`
 	/// @return The JWS Signature
+	/// @apiNote Internal: called by the JWS builder and verifier. Users obtain instances via the factories below and pass them to `JWS.build(...).sign(alg)` / `JWS.parse(...).verify(alg...)`.
 	byte[] sign(byte[] signingInput);
 
 	/// @param key The HMAC key, at least 256 bits long, which remains owned (and eventually destroyed) by the caller
