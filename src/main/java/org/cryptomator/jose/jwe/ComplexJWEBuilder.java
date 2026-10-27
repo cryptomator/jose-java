@@ -5,10 +5,20 @@ import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.IntegratedEncryptionAlg;
 import org.cryptomator.jose.KeyEncryptionAlg;
 import org.cryptomator.jose.Recipient;
+import org.cryptomator.jose.util.Base64Url;
 
 import java.util.Arrays;
 
 public record ComplexJWEBuilder(String payload, JsonObject protectedHeader, JsonObject unprotectedHeader, String aad) implements JWEBuilder {
+
+	/// @throws IllegalArgumentException if `aad` is not canonical base64url ([RFC 7516, Section 7.2.1](https://www.rfc-editor.org/rfc/rfc7516#section-7.2.1): the `aad` member is BASE64URL(JWE AAD))
+	public ComplexJWEBuilder {
+		try {
+			Base64Url.decode(aad); // the empty string decodes fine and means "no AAD"
+		} catch (IllegalArgumentException e) {
+			throw new IllegalArgumentException("aad must be base64url", e);
+		}
+	}
 
 	@Override
 	public String toString() {

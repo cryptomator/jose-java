@@ -35,6 +35,7 @@ public record SimpleJWEBuilder(String payload, JsonObject protectedHeader) imple
 	///
 	/// @param aad The additional authenticated data as base64url string
 	/// @return A builder for the JSON serializations with the given AAD
+	/// @throws IllegalArgumentException if `aad` is not canonical base64url
 	public ComplexJWEBuilder withAad(String aad) {
 		return new ComplexJWEBuilder(payload, protectedHeader, new JsonObject(), aad);
 	}

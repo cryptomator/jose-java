@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import javax.crypto.spec.SecretKeySpec;
 import java.util.Base64;
 import java.util.List;
@@ -145,13 +146,24 @@ class JWSTest {
 	}
 
 	@Test
+	@DisplayName("a producer must only list present, non-registered extension names in crit")
+	void testCritProducer() {
+		for (var header : List.of("{\"crit\":[]}", "{\"crit\":\"x\"}", "{\"crit\":[1]}", "{\"crit\":[\"x\",\"x\"],\"x\":1}", "{\"crit\":[\"alg\"]}", "{\"crit\":[\"x\"]}")) {
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWS.build("p").withProtectedHeader(json(header)).sign(MacAlg.hs256(KEY)), header);
+		}
+	}
+
+	@Test
 	@DisplayName("crit must be understood by the caller")
 	void testCrit() throws JoseException {
 		var token = JWS.build("p").withProtectedHeader(json("{\"crit\":[\"org.example.v\"],\"org.example.v\":1}")).sign(MacAlg.hs256(KEY));
 		Assertions.assertThrows(JoseParseException.class, () -> JWS.parse(token));
 		Assertions.assertEquals("p", JWS.parse(token, "org.example.v").verify(MacAlg.hs256(KEY)).payload());
 
-		var registered = JWS.build("p").withProtectedHeader(json("{\"crit\":[\"kid\"],\"kid\":\"k\"}")).sign(MacAlg.hs256(KEY));
+		// a registered name in crit is refused when signing; the parser rejects it too, so hand-build such a token
+		Assertions.assertThrows(IllegalArgumentException.class, () -> JWS.build("p").withProtectedHeader(json("{\"crit\":[\"kid\"],\"kid\":\"k\"}")).sign(MacAlg.hs256(KEY)));
+		var registeredHeader = Base64.getUrlEncoder().withoutPadding().encodeToString("{\"alg\":\"HS256\",\"crit\":[\"kid\"],\"kid\":\"k\"}".getBytes(StandardCharsets.UTF_8));
+		var registered = registeredHeader + token.substring(token.indexOf('.'));
 		Assertions.assertThrows(JoseParseException.class, () -> JWS.parse(registered, "kid"));
 	}
 

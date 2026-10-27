@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.util.Base64Url;
-import org.cryptomator.jose.util.CriticalHeaderPolicy;
+import org.cryptomator.jose.util.Crit;
 import org.cryptomator.jose.util.JsonHelper;
 import org.cryptomator.jose.util.Utf8;
 
@@ -21,7 +21,7 @@ public class JWEParser {
 	}
 
 	/// @param token The serialized JWE
-	/// @param understoodCrit Extension header parameter names the caller understands and therefore accepts in `crit`, in addition to [CriticalHeaderPolicy#IMPLEMENTED_EXTENSIONS]
+	/// @param understoodCrit Extension header parameter names the caller understands and therefore accepts in `crit`, in addition to [Crit#IMPLEMENTED_EXTENSIONS]
 	/// @return The parsed, not yet decrypted JWE
 	/// @throws JoseParseException if the token is malformed, violates the JOSE Header rules, or lists a critical extension that is not understood
 	public static ParsedJWE parse(String token, Set<String> understoodCrit) throws JoseParseException {
@@ -125,9 +125,9 @@ public class JWEParser {
 	private static void validateJoseHeaders(String protectedHeader, JsonObject unprotectedHeader, JsonArray recipients, Set<String> understoodCrit) throws JoseParseException {
 		try {
 			var decodedProtectedHeader = decodeProtectedHeader(protectedHeader);
-			var understood = new HashSet<>(CriticalHeaderPolicy.IMPLEMENTED_EXTENSIONS);
+			var understood = new HashSet<>(Crit.IMPLEMENTED_EXTENSIONS);
 			understood.addAll(understoodCrit);
-			var crit = CriticalHeaderPolicy.validate(decodedProtectedHeader, understood);
+			var crit = Crit.Parser.validate(decodedProtectedHeader, understood);
 			var sharedHeader = JsonHelper.disjointUnion(decodedProtectedHeader, unprotectedHeader);
 			for (var r : recipients) {
 				var recipient = r.getAsJsonObject();
@@ -142,7 +142,7 @@ public class JWEParser {
 				if (unprotectedHeader.has("crit") || recipientHeader.has("crit")) {
 					throw new JoseParseException("crit must only occur in the protected header");
 				}
-				CriticalHeaderPolicy.ensurePresent(crit, joseHeader);
+				Crit.Parser.ensurePresent(crit, joseHeader);
 			}
 		} catch (IllegalArgumentException e) {
 			throw new JoseParseException(e.getMessage(), e);

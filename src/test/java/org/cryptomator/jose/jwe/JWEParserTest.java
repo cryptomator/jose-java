@@ -177,6 +177,16 @@ class JWEParserTest {
 			return JWE.build("payload").withProtectedHeader(JsonParser.parseString(protectedExtras).getAsJsonObject()).encrypt(Enc.A128GCM, Alg.a256kw(KEK)).toCompactSerialization();
 		}
 
+		// a compact JWE whose protected header is replaced verbatim: for crit values the builder itself refuses to produce (parsing never checks the tag, so the AAD mismatch does not matter here)
+		private String jweWithRawProtected(String protectedJson) {
+			var valid = JWE.build("payload").encrypt(Enc.A128GCM, Alg.a256kw(KEK)).toCompactSerialization();
+			var header = JsonParser.parseString(protectedJson).getAsJsonObject();
+			header.addProperty("alg", "A256KW");
+			header.addProperty("enc", "A128GCM");
+			var encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(header.toString().getBytes(StandardCharsets.UTF_8));
+			return encoded + valid.substring(valid.indexOf('.'));
+		}
+
 		@Test
 		@DisplayName("an understood critical param parses and decrypts")
 		void testUnderstood() throws JoseException {
@@ -219,7 +229,7 @@ class JWEParserTest {
 		@Test
 		@DisplayName("a registered header parameter must not be listed in crit")
 		void testRegisteredName() {
-			var jwe = jweWithProtected("{\"crit\":[\"kid\"],\"kid\":\"k\"}");
+			var jwe = jweWithRawProtected("{\"crit\":[\"kid\"],\"kid\":\"k\"}");
 			Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe, "kid"));
 		}
 
@@ -227,7 +237,7 @@ class JWEParserTest {
 		@DisplayName("crit must be a non-empty array of unique strings")
 		void testMalformedCrit() {
 			for (var crit : List.of("\"org.example.v\"", "[]", "[1]", "[\"org.example.v\",\"org.example.v\"]")) {
-				var jwe = jweWithProtected("{\"crit\":" + crit + ",\"org.example.v\":1}");
+				var jwe = jweWithRawProtected("{\"crit\":" + crit + ",\"org.example.v\":1}");
 				Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe, "org.example.v"), crit);
 			}
 		}
@@ -235,7 +245,7 @@ class JWEParserTest {
 		@Test
 		@DisplayName("a critical param that is absent from the header is rejected")
 		void testCritParamAbsent() {
-			var jwe = jweWithProtected("{\"crit\":[\"org.example.v\"]}");
+			var jwe = jweWithRawProtected("{\"crit\":[\"org.example.v\"]}");
 			var thrown = Assertions.assertThrows(JoseParseException.class, () -> JWE.parse(jwe, "org.example.v"));
 			Assertions.assertTrue(thrown.getMessage().contains("absent"));
 		}

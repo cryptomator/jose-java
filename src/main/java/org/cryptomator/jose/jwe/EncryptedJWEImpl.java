@@ -6,6 +6,7 @@ import org.cryptomator.jose.Enc;
 import org.cryptomator.jose.IntegratedEncryptionAlg;
 import org.cryptomator.jose.Recipient;
 import org.cryptomator.jose.util.Ascii;
+import org.cryptomator.jose.util.Crit;
 import org.cryptomator.jose.util.JsonHelper;
 
 import java.nio.charset.StandardCharsets;
@@ -45,8 +46,10 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 			recipientsArray.add(recipientObj);
 
 			// finalize protected header by folding the recipient's params into it:
+			Crit.Builder.rejectUnprotected(recipient.header(), PER_RECIPIENT);
 			var recipientHeader = disjointUnion(algResult.recipientSpecificHeader(), ALG_GENERATED, recipient.header(), PER_RECIPIENT);
 			protectedHeader = disjointUnion(recipientHeader, PER_RECIPIENT, protectedHeader, PROTECTED);
+			Crit.Builder.ensurePresent(Crit.Builder.validate(protectedHeader), protectedHeader); // RFC 7515 Section 4.1.11: a producer must only list params that are present
 			var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
 
 			// encrypt payload:
@@ -68,15 +71,19 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		try {
 			// prepare shared header (protected + shared unprotected), which every recipient's header must be disjoint with:
 			var protectedHeader = protectedHeaderWithEnc(builder.protectedHeader(), enc);
+			Crit.Builder.rejectUnprotected(builder.unprotectedHeader(), SHARED_UNPROTECTED);
 			var sharedHeader = disjointUnion(protectedHeader, PROTECTED, builder.unprotectedHeader(), SHARED_UNPROTECTED);
+			var crit = Crit.Builder.validate(protectedHeader);
 
 			// prepare recipient objects:
 			JsonArray recipientsArray = new JsonArray();
 			for (Recipient recipient : recipients) {
+				Crit.Builder.rejectUnprotected(recipient.header(), PER_RECIPIENT);
 				var visibleHeader = disjointUnion(recipient.header(), PER_RECIPIENT, sharedHeader, "protected or shared unprotected header");
 				var algResult = recipient.alg().encrypt(visibleHeader, cek);
 				var recipientHeader = disjointUnion(algResult.recipientSpecificHeader(), ALG_GENERATED, recipient.header(), PER_RECIPIENT);
-				disjointUnion(recipientHeader, ALG_GENERATED, sharedHeader, "protected or shared unprotected header"); // check only, e.g. a caller-supplied protected 'alg'
+				var joseHeader = disjointUnion(recipientHeader, ALG_GENERATED, sharedHeader, "protected or shared unprotected header"); // e.g. rejects a caller-supplied protected 'alg'
+				Crit.Builder.ensurePresent(crit, joseHeader); // RFC 7515 Section 4.1.11: every critical param must be present in this recipient's JOSE Header
 				var recipientObj = new JsonObject();
 				recipientObj.addProperty("encrypted_key", base64url.encodeToString(algResult.encryptedKey()));
 				recipientObj.add("header", recipientHeader);
@@ -99,13 +106,18 @@ record EncryptedJWEImpl(String protectedHeader, JsonObject unprotectedHeader, Js
 		var base64url = Base64.getUrlEncoder().withoutPadding();
 
 		// prepare protected header:
+		Crit.Builder.rejectUnprotected(builder.unprotectedHeader(), SHARED_UNPROTECTED);
 		var userHeader = disjointUnion(builder.protectedHeader(), PROTECTED, builder.unprotectedHeader(), SHARED_UNPROTECTED);
 		if (userHeader.has("enc") || userHeader.has("ek")) {
 			throw new IllegalArgumentException("enc and ek headers must not be present for Integrated Encryption");
 		}
+		if (userHeader.has("alg")) {
+			throw new IllegalArgumentException("Header parameter 'alg' is derived from the algorithm and must not be set by the caller"); // in either header: the parser rejects duplicates
+		}
 		var algHeader = new JsonObject();
 		algHeader.addProperty("alg", alg.name());
 		var protectedHeader = disjointUnion(algHeader, ALG_GENERATED, builder.protectedHeader(), PROTECTED);
+		Crit.Builder.ensurePresent(Crit.Builder.validate(protectedHeader), JsonHelper.union(protectedHeader, builder.unprotectedHeader()));
 		var encodedProtectedHeader = base64url.encodeToString(protectedHeader.toString().getBytes(StandardCharsets.UTF_8));
 
 		// prepare aad (input to the HPKE seal, so it must be final before encrypting):

@@ -20,6 +20,8 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
+import org.cryptomator.jose.JoseException;
+import java.util.List;
 
 /// Header assembly rules of the encrypt-side builders ([SimpleJWEBuilder], [ComplexJWEBuilder], [EncryptedJWEImpl]).
 class JWEBuilderTest {
@@ -125,6 +127,72 @@ class JWEBuilderTest {
 			Assertions.assertThrows(IllegalArgumentException.class, () -> builder.encrypt(Alg.hpke9(xwingKeyPair.getPublic())));
 		}
 
+	}
+
+	@Nested
+	@DisplayName("producer-side crit (RFC 7515 Section 4.1.11)")
+	class Crit {
+
+		private KeyPair xwingKeyPair;
+
+		@BeforeEach
+		void setup() throws GeneralSecurityException {
+			xwingKeyPair = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE).generateKeyPair();
+		}
+
+		@Test
+		@DisplayName("a valid crit round-trips in all three modes")
+		void testValidCrit() throws JoseException {
+			var header = json("{\"crit\":[\"org.example.v\"],\"org.example.v\":1}");
+			var simple = JWE.build("payload").withProtectedHeader(header).encrypt(Enc.A128GCM, kek).toCompactSerialization();
+			var multi = JWE.build("payload").withProtectedHeader(header).encrypt(Enc.A128GCM, kek, kek).toJsonSerialization();
+			var integrated = JWE.build("payload").withProtectedHeader(header).encrypt(Alg.hpke9(xwingKeyPair.getPublic())).toCompactSerialization();
+			Assertions.assertEquals("payload", JWE.parse(simple, "org.example.v").decrypt(kek).payload());
+			Assertions.assertEquals("payload", JWE.parse(multi, "org.example.v").decrypt(kek).payload());
+			Assertions.assertEquals("payload", JWE.parse(integrated, "org.example.v").decrypt(Alg.hpke9(xwingKeyPair.getPrivate())).payload());
+		}
+
+		@Test
+		@DisplayName("malformed crit, registered names and absent params are refused when encrypting")
+		void testInvalidCrit() {
+			for (var header : List.of("{\"crit\":[]}", "{\"crit\":\"x\"}", "{\"crit\":[1]}", "{\"crit\":[\"x\",\"x\"],\"x\":1}", "{\"crit\":[\"kid\"],\"kid\":\"k\"}", "{\"crit\":[\"x\"]}")) {
+				var builder = JWE.build("payload").withProtectedHeader(json(header));
+				Assertions.assertThrows(IllegalArgumentException.class, () -> builder.encrypt(Enc.A128GCM, kek), header);
+				Assertions.assertThrows(IllegalArgumentException.class, () -> builder.encrypt(Enc.A128GCM, kek, kek), header);
+				Assertions.assertThrows(IllegalArgumentException.class, () -> builder.encrypt(Alg.hpke9(xwingKeyPair.getPublic())), header);
+			}
+		}
+
+		@Test
+		@DisplayName("a critical param may live in a per-recipient or shared unprotected header, but must then be present for every recipient")
+		void testCritParamPresence() throws JoseException {
+			var crit = json("{\"crit\":[\"org.example.v\"]}");
+			var withParam = Recipient.withAlg(kek).withClaim("org.example.v", 1);
+			var withoutParam = Recipient.withAlg(kek);
+			Assertions.assertDoesNotThrow(() -> JWE.build("payload").withProtectedHeader(crit).encrypt(Enc.A128GCM, withParam, withParam));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withProtectedHeader(crit).encrypt(Enc.A128GCM, withParam, withoutParam));
+			Assertions.assertDoesNotThrow(() -> JWE.build("payload").withProtectedHeader(crit).withUnprotectedHeader(json("{\"org.example.v\":1}")).encrypt(Enc.A128GCM, kek, kek));
+			Assertions.assertDoesNotThrow(() -> JWE.build("payload").withProtectedHeader(crit).withUnprotectedHeader(json("{\"org.example.v\":1}")).encrypt(Alg.hpke9(xwingKeyPair.getPublic())));
+		}
+
+		@Test
+		@DisplayName("crit itself is refused outside the protected header")
+		void testCritMustBeProtected() {
+			var crit = json("{\"crit\":[\"org.example.v\"],\"org.example.v\":1}");
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withUnprotectedHeader(crit).encrypt(Enc.A128GCM, kek));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withUnprotectedHeader(crit).encrypt(Alg.hpke9(xwingKeyPair.getPublic())));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").encrypt(Enc.A128GCM, Recipient.withAlg(kek).withClaims(crit)));
+			Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").encrypt(Enc.A128GCM, Recipient.withAlg(kek).withClaims(crit), Recipient.withAlg(kek)));
+		}
+
+	}
+
+	@Test
+	@DisplayName("Integrated Encryption refuses a caller-supplied alg in the shared unprotected header too")
+	void testIntegratedAlgInUnprotectedHeader() throws GeneralSecurityException {
+		var xwingKeyPair = KeyPairGenerator.getInstance("X-Wing", XwingProvider.INSTANCE).generateKeyPair();
+		var builder = JWE.build("payload").withUnprotectedHeader(json("{\"alg\":\"HPKE-9\"}"));
+		Assertions.assertThrows(IllegalArgumentException.class, () -> builder.encrypt(Alg.hpke9(xwingKeyPair.getPublic())));
 	}
 
 }

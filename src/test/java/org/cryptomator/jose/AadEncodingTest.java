@@ -9,10 +9,12 @@ class AadEncodingTest {
 	private static final char[] PASSWORD = "secret".toCharArray();
 
 	@Test
-	@DisplayName("encrypting with a non-ASCII AAD fails fast instead of silently mangling it")
-	void testNonAsciiAadRejected() {
-		var builder = JWE.build("payload").withAad("café"); // not base64url; contains a non-ASCII char
-		Assertions.assertThrows(IllegalArgumentException.class, () -> builder.encrypt(Enc.A256GCM, Alg.pbes2(PASSWORD, 1000)));
+	@DisplayName("a non-base64url AAD is refused by the builder instead of being silently mangled")
+	void testNonBase64urlAadRejected() {
+		Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withAad("café")); // non-ASCII
+		Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withAad("hello world")); // ASCII, but not base64url
+		Assertions.assertThrows(IllegalArgumentException.class, () -> JWE.build("payload").withAad("YWFk=")); // padded
+		Assertions.assertDoesNotThrow(() -> JWE.build("payload").withAad(""));
 	}
 
 	@Test

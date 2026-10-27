@@ -3,6 +3,7 @@ package org.cryptomator.jose.jws;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.MacAlg;
 import org.cryptomator.jose.util.Ascii;
+import org.cryptomator.jose.util.Crit;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -33,7 +34,8 @@ public record JWSBuilder(String payload, JsonObject protectedHeader) {
 	///
 	/// @param alg The MAC algorithm, whose name becomes the `alg` header parameter
 	/// @return The JWS in compact serialization
-	/// @throws IllegalArgumentException if the caller-supplied header contains `alg`, or the unsupported `b64` parameter ([RFC 7797](https://www.rfc-editor.org/rfc/rfc7797))
+	/// @throws IllegalArgumentException if the caller-supplied header contains `alg`, the unsupported `b64` parameter ([RFC 7797](https://www.rfc-editor.org/rfc/rfc7797)), or a `crit`
+	/// that is malformed, lists a registered name, or names a parameter that is absent
 	public String sign(MacAlg alg) throws IllegalArgumentException {
 		if (protectedHeader.has("alg")) {
 			throw new IllegalArgumentException("Header parameter 'alg' is derived from the signing algorithm and must not be set by the caller");
@@ -45,6 +47,7 @@ public record JWSBuilder(String payload, JsonObject protectedHeader) {
 		var header = new JsonObject();
 		header.addProperty("alg", alg.name());
 		protectedHeader.entrySet().forEach(e -> header.add(e.getKey(), e.getValue()));
+		Crit.Builder.ensurePresent(Crit.Builder.validate(header), header); // RFC 7515 Section 4.1.11
 		var encodedHeader = base64url.encodeToString(header.toString().getBytes(StandardCharsets.UTF_8));
 		var encodedPayload = base64url.encodeToString(payload.getBytes(StandardCharsets.UTF_8));
 		var signature = alg.sign(Ascii.strictBytes(encodedHeader + "." + encodedPayload));

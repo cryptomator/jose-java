@@ -3,7 +3,7 @@ package org.cryptomator.jose.jws;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseParseException;
 import org.cryptomator.jose.util.Base64Url;
-import org.cryptomator.jose.util.CriticalHeaderPolicy;
+import org.cryptomator.jose.util.Crit;
 import org.cryptomator.jose.util.JsonHelper;
 import org.cryptomator.jose.util.Utf8;
 
@@ -31,8 +31,8 @@ public final class JWSParser {
 			throw new JoseParseException("Unsupported header parameter: b64"); // RFC 7797 unencoded payloads
 		}
 		try {
-			var crit = CriticalHeaderPolicy.validate(header, understoodCrit);
-			CriticalHeaderPolicy.ensurePresent(crit, header);
+			var crit = Crit.Parser.validate(header, understoodCrit);
+			Crit.Parser.ensurePresent(crit, header);
 			Base64Url.decode(parts[1]);
 			Base64Url.decode(parts[2]);
 		} catch (IllegalArgumentException e) {

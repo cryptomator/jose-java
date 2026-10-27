@@ -41,7 +41,7 @@ public class APITest {
 		@Test
 		@DisplayName("Only General or Flattened JSON serialization allowed when having AAD")
 		public void testSerializationWithAadOrUnprotectedHeader() {
-			var withAAD = JWE.build("payload").withAad("aad").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000));
+			var withAAD = JWE.build("payload").withAad("YWFk").encrypt(Enc.A256GCM, Alg.pbes2("secret".toCharArray(), 1000));
 
 			Assertions.assertInstanceOf(SingleRecipientEncryptedJWE.class, withAAD);
 			Assertions.assertDoesNotThrow(() -> SingleRecipientEncryptedJWE.class.getMethod(TO_GENERAL_JSON));
@@ -68,7 +68,7 @@ public class APITest {
 			var recipient = Recipient.withAlg(Alg.pbes2("secret".toCharArray(), 1000)).withClaim("kid", "kid");
 
 			Assertions.assertInstanceOf(SimpleEncryptedJWE.class, JWE.build("payload").encrypt(Enc.A256GCM, recipient));
-			Assertions.assertInstanceOf(SingleRecipientEncryptedJWE.class, JWE.build("payload").withAad("aad").encrypt(Enc.A256GCM, recipient));
+			Assertions.assertInstanceOf(SingleRecipientEncryptedJWE.class, JWE.build("payload").withAad("YWFk").encrypt(Enc.A256GCM, recipient));
 			EncryptedJWE multi = JWE.build("payload").encrypt(Enc.A256GCM, recipient, recipient); // static type: General JSON only (the runtime type implements everything)
 			Assertions.assertDoesNotThrow(multi::toJsonSerialization);
 		}
