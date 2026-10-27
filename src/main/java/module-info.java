@@ -1,5 +1,9 @@
+import org.jspecify.annotations.NullMarked;
+
+@NullMarked
 module org.cryptomator.jose {
 	requires transitive com.google.gson;
+	requires transitive org.jspecify;
 	requires org.bouncycastle.provider;
 
 	exports org.cryptomator.jose;

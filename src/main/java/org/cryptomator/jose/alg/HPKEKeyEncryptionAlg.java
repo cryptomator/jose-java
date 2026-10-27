@@ -1,5 +1,6 @@
 package org.cryptomator.jose.alg;
 
+import org.jspecify.annotations.Nullable;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.HpkeKeyDecryptionAlg;
 import org.cryptomator.jose.HpkeKeyEncryptionAlg;
@@ -29,15 +30,15 @@ public final class HPKEKeyEncryptionAlg extends AbstractKeyAlg implements HpkeKe
 	private static final byte[] EMPTY = new byte[0];
 
 	private final HPKE hpke;
-	private final PublicKey publicKey;
-	private final PrivateKey privateKey;
-	private final Psk psk; // null for mode_base
+	private final @Nullable PublicKey publicKey; // the encrypt side
+	private final @Nullable PrivateKey privateKey; // the decrypt side
+	private final @Nullable Psk psk; // null for mode_base
 
-	public HPKEKeyEncryptionAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey) {
+	public HPKEKeyEncryptionAlg(HPKE hpke, @Nullable PublicKey publicKey, @Nullable PrivateKey privateKey) {
 		this(hpke, publicKey, privateKey, null);
 	}
 
-	private HPKEKeyEncryptionAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey, Psk psk) {
+	private HPKEKeyEncryptionAlg(HPKE hpke, @Nullable PublicKey publicKey, @Nullable PrivateKey privateKey, @Nullable Psk psk) {
 		this.hpke = hpke;
 		this.publicKey = publicKey;
 		this.privateKey = privateKey;

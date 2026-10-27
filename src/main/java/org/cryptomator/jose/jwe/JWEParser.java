@@ -1,5 +1,6 @@
 package org.cryptomator.jose.jwe;
 
+import org.jspecify.annotations.Nullable;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -176,7 +177,7 @@ public class JWEParser {
 	}
 
 	// the member as an object, or null if absent
-	private static JsonObject requireObject(JsonObject json, String member) throws JoseParseException {
+	private static @Nullable JsonObject requireObject(JsonObject json, String member) throws JoseParseException {
 		JsonElement value = json.get(member);
 		if (value == null) {
 			return null;

@@ -1,5 +1,6 @@
 package org.cryptomator.jose.hpke;
 
+import org.jspecify.annotations.Nullable;
 import org.cryptomator.jose.util.ArrayUtil;
 import org.cryptomator.jose.util.Destroyables;
 import org.cryptomator.jose.util.X25519;
@@ -22,7 +23,7 @@ import java.util.Arrays;
 public class XwingKEMSpi implements KEMSpi {
 
 	@Override
-	public EncapsulatorSpi engineNewEncapsulator(PublicKey publicKey, AlgorithmParameterSpec spec, SecureRandom secureRandom) throws InvalidAlgorithmParameterException, InvalidKeyException {
+	public EncapsulatorSpi engineNewEncapsulator(PublicKey publicKey, @Nullable AlgorithmParameterSpec spec, @Nullable SecureRandom secureRandom) throws InvalidAlgorithmParameterException, InvalidKeyException {
 		if (!(publicKey instanceof XwingPublicKey pk)) {
 			throw new InvalidKeyException("Invalid public key: " + publicKey);
 		}
@@ -33,7 +34,7 @@ public class XwingKEMSpi implements KEMSpi {
 	}
 
 	@Override
-	public DecapsulatorSpi engineNewDecapsulator(PrivateKey privateKey, AlgorithmParameterSpec spec) throws InvalidAlgorithmParameterException, InvalidKeyException {
+	public DecapsulatorSpi engineNewDecapsulator(PrivateKey privateKey, @Nullable AlgorithmParameterSpec spec) throws InvalidAlgorithmParameterException, InvalidKeyException {
 		if (!(privateKey instanceof XwingPrivateKey sk)) {
 			throw new InvalidKeyException("Invalid private key: " + privateKey);
 		}

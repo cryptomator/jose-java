@@ -1,5 +1,6 @@
 package org.cryptomator.jose.util;
 
+import org.jspecify.annotations.Nullable;
 import javax.security.auth.DestroyFailedException;
 import javax.security.auth.Destroyable;
 
@@ -11,7 +12,7 @@ public class Destroyables {
 		// Utility class
 	}
 
-	public static void destroyQuietly(Destroyable destroyable) { // TODO: mark param as @Nullable
+	public static void destroyQuietly(@Nullable Destroyable destroyable) {
 		if (destroyable != null) {
 			try {
 				destroyable.destroy();

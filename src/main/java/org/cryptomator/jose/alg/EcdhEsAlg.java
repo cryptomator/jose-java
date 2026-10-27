@@ -1,5 +1,6 @@
 package org.cryptomator.jose.alg;
 
+import org.jspecify.annotations.Nullable;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.JoseDecryptException;
 import org.cryptomator.jose.JoseParseException;
@@ -38,10 +39,10 @@ public final class EcdhEsAlg extends AbstractKeyAlg {
 
 	private final Type type;
 	private final Curve curve;
-	private final ECPublicKey publicKey;
-	private final ECPrivateKey privateKey;
+	private final @Nullable ECPublicKey publicKey; // the encrypt side
+	private final @Nullable ECPrivateKey privateKey; // the decrypt side
 
-	public EcdhEsAlg(Type type, Curve curve, ECPublicKey publicKey, ECPrivateKey privateKey) {
+	public EcdhEsAlg(Type type, Curve curve, @Nullable ECPublicKey publicKey, @Nullable ECPrivateKey privateKey) {
 		this.type = type;
 		this.curve = curve;
 		this.publicKey = publicKey == null ? null : ECHelper.validateKey(publicKey, curve.getCurveParams());

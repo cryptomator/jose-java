@@ -1,5 +1,6 @@
 package org.cryptomator.jose.alg;
 
+import org.jspecify.annotations.Nullable;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.IntegratedDecryptionAlg;
 import org.cryptomator.jose.IntegratedEncryptionAlg;
@@ -24,15 +25,15 @@ public final class HPKEIntegratedAlg implements IntegratedEncryptionAlg, Integra
 	private static final byte[] EMPTY = new byte[0];
 
 	private final HPKE hpke;
-	private final PublicKey publicKey;
-	private final PrivateKey privateKey;
-	private final Psk psk; // null for mode_base
+	private final @Nullable PublicKey publicKey; // the encrypt side
+	private final @Nullable PrivateKey privateKey; // the decrypt side
+	private final @Nullable Psk psk; // null for mode_base
 
-	public HPKEIntegratedAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey) {
+	public HPKEIntegratedAlg(HPKE hpke, @Nullable PublicKey publicKey, @Nullable PrivateKey privateKey) {
 		this(hpke, publicKey, privateKey, null);
 	}
 
-	private HPKEIntegratedAlg(HPKE hpke, PublicKey publicKey, PrivateKey privateKey, Psk psk) {
+	private HPKEIntegratedAlg(HPKE hpke, @Nullable PublicKey publicKey, @Nullable PrivateKey privateKey, @Nullable Psk psk) {
 		this.hpke = hpke;
 		this.publicKey = publicKey;
 		this.privateKey = privateKey;

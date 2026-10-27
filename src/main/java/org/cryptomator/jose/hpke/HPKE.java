@@ -1,5 +1,6 @@
 package org.cryptomator.jose.hpke;
 
+import org.jspecify.annotations.Nullable;
 import org.cryptomator.jose.Psk;
 import org.cryptomator.jose.util.ArrayUtil;
 import org.cryptomator.jose.util.Destroyables;
@@ -103,12 +104,12 @@ public final class HPKE {
 	/// @param info Application-supplied information
 	/// @param psk The pre-shared key for `mode_psk`, or `null` for `mode_base`
 	/// @return The encapsulated secret and the sender's context
-	public Sender setupS(PublicKey pkR, byte[] info, Psk psk) { // TODO: mark psk as nullable
+	public Sender setupS(PublicKey pkR, byte[] info, @Nullable Psk psk) {
 		return setupS(pkR, info, psk, null);
 	}
 
 	// visible for testing: a fixed SecureRandom makes the KEM encapsulation reproducible against test vectors
-	Sender setupS(PublicKey pkR, byte[] info, Psk psk, SecureRandom random) {
+	Sender setupS(PublicKey pkR, byte[] info, @Nullable Psk psk, @Nullable SecureRandom random) {
 		KEM.Encapsulated encapsulated;
 		try {
 			encapsulated = kem.newEncapsulator(pkR, random).encapsulate(); // null random: the provider's default
@@ -134,7 +135,7 @@ public final class HPKE {
 	/// @param psk The pre-shared key for `mode_psk`, or `null` for `mode_base`
 	/// @return The recipient's context
 	/// @throws DecapsulateException if `enc` cannot be decapsulated
-	public Context setupR(byte[] enc, PrivateKey skR, byte[] info, Psk psk) throws DecapsulateException { // TODO: mark psk as nullable
+	public Context setupR(byte[] enc, PrivateKey skR, byte[] info, @Nullable Psk psk) throws DecapsulateException {
 		SecretKey decapsulated;
 		try {
 			decapsulated = kem.newDecapsulator(skR).decapsulate(enc);
@@ -156,7 +157,7 @@ public final class HPKE {
 	}
 
 	// the mode follows from the presence of a PSK; its bytes only live for the duration of the key schedule
-	private Context keySchedule(SecretKey sharedSecret, byte[] info, Psk psk) { // TODO: mark psk as nullable
+	private Context keySchedule(SecretKey sharedSecret, byte[] info, @Nullable Psk psk) {
 		if (psk == null) {
 			return keySchedule(MODE_BASE, sharedSecret, info, EMPTY, EMPTY);
 		}

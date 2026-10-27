@@ -1,5 +1,6 @@
 package org.cryptomator.jose.hpke;
 
+import org.jspecify.annotations.Nullable;
 import org.bouncycastle.crypto.digests.SHAKEDigest;
 import org.cryptomator.jose.util.ArrayUtil;
 import org.cryptomator.jose.util.X25519;
@@ -20,8 +21,8 @@ import java.util.Arrays;
 /// See [draft-connolly-cfrg-xwing-kem Section 5.2](https://datatracker.ietf.org/doc/html/draft-connolly-cfrg-xwing-kem-07#section-5.2)
 public class XwingKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
-	private SecureRandom random;
-	private byte[] seed; // set by XwingSeedParameterSpec: derandomized generation for this seed
+	private @Nullable SecureRandom random; // null until initialized: a strong default is drawn on first use
+	private @Nullable byte[] seed; // set by XwingSeedParameterSpec: derandomized generation for this seed
 
 	@Override
 	public void initialize(int keysize, SecureRandom random) {

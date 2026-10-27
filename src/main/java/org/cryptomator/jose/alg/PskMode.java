@@ -1,5 +1,6 @@
 package org.cryptomator.jose.alg;
 
+import org.jspecify.annotations.Nullable;
 import com.google.gson.JsonObject;
 import org.cryptomator.jose.Psk;
 import org.cryptomator.jose.util.Base64Url;
@@ -21,7 +22,7 @@ final class PskMode {
 	/// @param combinedHeader The recipient's combined JOSE Header
 	/// @param psk The configured PSK, or `null` for `mode_base`
 	/// @throws DecryptKeyException on a mode mismatch, a malformed `psk_id`, or a `psk_id` naming another PSK
-	static void verify(JsonObject combinedHeader, Psk psk) throws DecryptKeyException {
+	static void verify(JsonObject combinedHeader, @Nullable Psk psk) throws DecryptKeyException {
 		var pskIdHeader = combinedHeader.get(PSK_ID);
 		if (pskIdHeader == null) {
 			if (psk != null) {

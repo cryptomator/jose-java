@@ -54,10 +54,8 @@ public enum Curve {
 		}
 	}
 
-	public <T extends ECKey> T ensureSameCurve(T key) { // TODO: add @Nullable annotation?
-		if (key == null) {
-			return null;
-		} else if (getCurveParams().getCurve().equals(key.getParams().getCurve())) {
+	public <T extends ECKey> T ensureSameCurve(T key) {
+		if (getCurveParams().getCurve().equals(key.getParams().getCurve())) {
 			return key;
 		} else {
 			throw new IllegalArgumentException("Not a " + jwaCrvName + " key");
