@@ -63,7 +63,7 @@
 		<mvn-resources.version>3.5.0</mvn-resources.version>
 		<mvn-source.version>3.4.0</mvn-source.version>
 		<mvn-surefire.version>3.6.0</mvn-surefire.version>
-		<surefire-tree-reporter.version>2.1.0</surefire-tree-reporter.version>
+		<surefire-tree-reporter.version>2.2.0</surefire-tree-reporter.version>
 
 		<!-- Property used by surefire to determine jacoco engine -->
 		<surefire.jacoco.args />
@@ -226,7 +226,7 @@
 					<statelessTestsetInfoReporter implementation="org.apache.maven.plugin.surefire.extensions.junit5.JUnit5StatelessTestsetInfoTreeReporter">
 						<theme>UNICODE</theme>
 						<githubStepSummary>true</githubStepSummary>
-						<hideResultsOnSuccess>true</hideResultsOnSuccess>
+						<hideSuccessfulParameterizedRuns>true</hideSuccessfulParameterizedRuns>
 						<printTestCounts>true</printTestCounts>
 					</statelessTestsetInfoReporter>
 				</configuration>
